@@ -30,6 +30,13 @@ public:
 
     bool isConnected() const { return m_isConnected; }
 
+    void setNetworkAccessManager(QNetworkAccessManager* manager) {
+        if (m_networkManager && m_networkManager->parent() == this) {
+            m_networkManager->deleteLater();
+        }
+        m_networkManager = manager;
+    }
+
 signals:
     void connected();
     void disconnected();

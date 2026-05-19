@@ -14,6 +14,7 @@ TwitchAuth::TwitchAuth(const QString& clientId, const QString& clientSecret, int
     , m_callbackPort(port)
     , m_clientId(clientId)
     , m_clientSecret(clientSecret)
+    , m_networkManager(nullptr)
 {
 }
 
@@ -152,7 +153,7 @@ void TwitchAuth::exchangeCodeForToken(const QString& authCode)
 {
     LOG_INFO("Exchanging authorization code for OAuth tokens.");
 
-    QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+    QNetworkAccessManager* manager = m_networkManager ? m_networkManager : new QNetworkAccessManager(this);
     QUrl tokenUrl("https://id.twitch.tv/oauth2/token");
     QNetworkRequest request(tokenUrl);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -168,7 +169,9 @@ void TwitchAuth::exchangeCodeForToken(const QString& authCode)
 
     connect(reply, &QNetworkReply::finished, [this, reply, manager]() {
         reply->deleteLater();
-        manager->deleteLater();
+        if (manager != m_networkManager) {
+            manager->deleteLater();
+        }
 
         if (reply->error() != QNetworkReply::NoError) {
             LOG_ERROR("HTTP error exchanging authorization code for token: " + reply->errorString());

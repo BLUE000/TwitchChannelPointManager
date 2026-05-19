@@ -137,3 +137,54 @@ TEST_F(OverlayIntegrationTest, TestFullSignalFlow) {
     ASSERT_EQ(db.getTodayUsageCount(), 1);
 }
 ```
+
+---
+
+## 4. 外部通信のスタブ化 (Mocking External Communications)
+
+テスト時にTwitch APIや実Webサーバーと通信すると、ネットワーク環境や認証期限に依存し、テストが不安定（Flaky）になります。そのため、通信箇所をモックオブジェクトに差し替え可能な依存性注入（Dependency Injection）構造を採用しています。
+
+### 4.1 ネットワーク要求のインターセプト (`MockNetworkAccessManager`)
+`TwitchAuth` および `TwitchEventSub` には、任意の `QNetworkAccessManager` を外部からセット可能な `setNetworkAccessManager()` を実装しています。テスト時に `MockNetworkAccessManager` を注入することで、任意のURLに対して意図したレスポンスを動的に返却できます。
+
+```cpp
+TEST_F(TwitchAuthTest, TestTokenExchangeWithMockHttp) {
+    // 1. スタブマネージャーの作成
+    MockNetworkAccessManager mockManager;
+    
+    // 期待するURLと、それに対するステータスコード・JSONレスポンスを事前登録
+    QUrl targetUrl("https://id.twitch.tv/oauth2/token");
+    QByteArray expectedJson = R"({
+        "access_token": "mocked_access_token_12345",
+        "refresh_token": "mocked_refresh_token_67890",
+        "expires_in": 3600,
+        "scope": ["channel:read:redemptions"]
+    })";
+    mockManager.setExpectedResponse(targetUrl, 200, expectedJson);
+
+    // 2. テスト対象にスタブを注入
+    TwitchAuth auth("test_client_id", "test_client_secret");
+    auth.setNetworkAccessManager(&mockManager);
+
+    // 3. 非同期シグナルの監視
+    QSignalSpy successSpy(&auth, &TwitchAuth::authSuccess);
+
+    // 4. トリガー発火（ローカルサーバーからリダイレクトがあったと仮定してメソッドを直接叩く）
+    // 内部で manager->post() が呼ばれるが、モックによって偽装レスポンスが即座に返る
+    QMetaObject::invokeMethod(&auth, "exchangeCodeForToken", Q_ARG(QString, "mock_auth_code"));
+
+    // 5. アサート（HTTP通信がスタブされ、即座に成功シグナルが発火すること）
+    ASSERT_TRUE(successSpy.wait(2000)); // 非同期完了を最大2秒待機
+    ASSERT_EQ(successSpy.count(), 1);
+
+    // 取得したトークンの検証
+    QList<QVariant> args = successSpy.takeFirst();
+    ASSERT_EQ(args.at(0).toString(), "mocked_access_token_12345");
+    ASSERT_EQ(args.at(1).toString(), "mocked_refresh_token_67890");
+}
+```
+
+### 4.2 WebSocket のスタブ検証（モックサーバー）
+`TwitchEventSub` が接続する `wss://eventsub.wss.twitch.tv` の検証では、ローカルホスト上で `QWebSocketServer` をポートを一時指定して立ち上げ、接続先をテスト環境のみ `ws://localhost:PORT` へ切り替えることで、実WebSocket通信を完全にローカルでエミュレートします。
+テストサーバーから `session_welcome` メッセージや `notification`（チャンネルポイント消費）JSONメッセージをソケット経由でクライアントにプッシュし、クライアント側が正しくシグナルを発火するかを検証します。
+

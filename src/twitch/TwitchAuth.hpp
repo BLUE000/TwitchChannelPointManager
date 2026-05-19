@@ -5,6 +5,7 @@
 #include <QTcpSocket>
 #include <QString>
 #include <QUrlQuery>
+#include <QNetworkAccessManager>
 
 class TwitchAuth : public QObject {
     Q_OBJECT
@@ -18,9 +19,13 @@ private:
     QString m_clientId;
     QString m_clientSecret;
 
+    QNetworkAccessManager* m_networkManager;
+
 public:
     explicit TwitchAuth(const QString& clientId, const QString& clientSecret, int port = 28082, QObject* parent = nullptr);
     ~TwitchAuth();
+
+    void setNetworkAccessManager(QNetworkAccessManager* manager) { m_networkManager = manager; }
 
     // 認可フローを開始（外部デフォルトブラウザでTwitchの認証ページを開く）
     void startAuthFlow();
