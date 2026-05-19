@@ -282,6 +282,16 @@ QList<UserUsageStat> Database::getUserUsageStatistics()
     return stats;
 }
 
+bool Database::clearUsageLogs()
+{
+    QSqlQuery query(m_db);
+    if (!query.exec("DELETE FROM usage_logs")) {
+        LOG_ERROR("Failed to clear usage logs: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
 bool Database::saveSetting(const QString& key, const QString& value)
 {
     QSqlQuery query(m_db);

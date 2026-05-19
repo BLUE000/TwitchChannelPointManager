@@ -37,6 +37,7 @@ public:
     int getTodayUsageCount();
     QList<QPair<QString, int>> getTodayRanking();
     QList<UserUsageStat> getUserUsageStatistics();
+    bool clearUsageLogs();
 
     // 汎用設定（Settings）テーブルの読み書き
     bool saveSetting(const QString& key, const QString& value);

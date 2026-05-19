@@ -15,12 +15,18 @@ private:
     QTableWidget* m_rankingTable;
     QTableWidget* m_userStatsTable;
     QPushButton* m_refreshButton;
+    QPushButton* m_exportCsvButton;
+    QPushButton* m_resetButton;
 
 public:
     explicit StatisticsWidget(Application* app, QWidget* parent = nullptr);
     ~StatisticsWidget() = default;
 
     void refreshRanking();
+
+private slots:
+    void onExportCsvClicked();
+    void onResetClicked();
 
 private:
     void setupUi();
