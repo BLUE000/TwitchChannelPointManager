@@ -6,11 +6,15 @@
 #include "../core/Application.hpp"
 #include <QVBoxLayout>
 
+#ifndef APP_VERSION_STRING
+#define APP_VERSION_STRING "Unknown"
+#endif
+
 MainWindow::MainWindow(Application* app, QWidget* parent)
     : QMainWindow(parent)
     , m_app(app)
 {
-    setWindowTitle("Twitch Channel Point Manager - v1.0β");
+    setWindowTitle(QString("Twitch Channel Point Manager - v%1").arg(APP_VERSION_STRING));
     resize(850, 600);
 
     setupUi();

@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
+set(APP_VERSION_STRING "1.0β")
 project(TwitchChannelPointManager VERSION 1.0.0 LANGUAGES CXX)
 
 # ==========================================
@@ -90,6 +91,7 @@ add_executable(TwitchChannelPointManager ${SOURCES})
 target_compile_definitions(TwitchChannelPointManager PRIVATE
     TWITCH_GLOBAL_CLIENT_ID="${TWITCH_GLOBAL_CLIENT_ID}"
     TWITCH_GLOBAL_CLIENT_SECRET="${TWITCH_GLOBAL_CLIENT_SECRET}"
+    APP_VERSION_STRING="${APP_VERSION_STRING}"
 )
 
 # インクルードディレクトリの追加
