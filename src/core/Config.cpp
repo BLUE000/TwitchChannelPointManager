@@ -76,6 +76,7 @@ bool Config::saveSecureString(const QString& key, const QString& plainText, cons
 {
     if (plainText.isEmpty()) {
         set(key, "");
+        m_secureCache.remove(key);
         return true;
     }
 
@@ -91,11 +92,19 @@ bool Config::saveSecureString(const QString& key, const QString& plainText, cons
     // 暗号化バイナリをBase64にエンコードして設定に保存
     QByteArray base64Data = result.data().toBase64();
     set(key, QString::fromUtf8(base64Data));
+    
+    // キャッシュを更新
+    m_secureCache.insert(key, plainText);
     return true;
 }
 
 QString Config::loadSecureString(const QString& key, const QString& secretKey, const QString& defaultValue) const
 {
+    // メモリキャッシュにあれば即座に返す (WebAPIの遅延回避)
+    if (m_secureCache.contains(key)) {
+        return m_secureCache.value(key);
+    }
+
     QVariant val = get(key);
     if (!val.isValid() || val.toString().isEmpty()) {
         return defaultValue;
@@ -111,5 +120,10 @@ QString Config::loadSecureString(const QString& key, const QString& secretKey, c
         return defaultValue;
     }
 
-    return QString::fromUtf8(result.data());
+    QString decryptedString = QString::fromUtf8(result.data());
+    
+    // キャッシュに保存して次回以降は通信をスキップ
+    m_secureCache.insert(key, decryptedString);
+    
+    return decryptedString;
 }

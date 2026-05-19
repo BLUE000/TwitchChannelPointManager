@@ -10,6 +10,7 @@ class Config : public QObject {
 private:
     QString m_configPath;
     QMap<QString, QVariant> m_settings;
+    mutable QMap<QString, QString> m_secureCache;
 
 public:
     explicit Config(const QString& path, QObject* parent = nullptr);
