@@ -28,8 +28,11 @@ public:
     explicit QueueManager(Database* database, QObject* parent = nullptr);
     ~QueueManager() = default;
 
-    // キューへ追加 (EventSubなどからのトリガー)
+    // キューへ追加 (EventSubなどからのトリガー、DBからロード)
     void enqueueRedemption(const QString& rewardId, const QString& username, const QDateTime& timestamp);
+
+    // テスト再生用: DBを経由せず直接Rewardオブジェクトを受け取ってキューに積む
+    void enqueueReward(const Reward& reward, const QString& username, const QDateTime& timestamp);
     
     // キュー管理操作
     void clearQueue();

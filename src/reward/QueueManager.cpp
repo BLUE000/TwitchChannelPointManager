@@ -83,6 +83,44 @@ void QueueManager::enqueueRedemption(const QString& rewardId, const QString& use
     }
 }
 
+void QueueManager::enqueueReward(const Reward& reward, const QString& username, const QDateTime& timestamp)
+{
+    LOG_INFO(QString("Enqueuing test redemption for Reward: %1, User: %2").arg(reward.id).arg(username));
+
+    if (reward.effects.isEmpty()) {
+        LOG_WARN(QString("Reward '%1' has no configured effects. Skipping playback.").arg(reward.name));
+        return;
+    }
+
+    QueueItem item;
+    item.queueId = QUuid::createUuid().toString().replace("{", "").replace("}", "");
+    item.rewardId = reward.id;
+    item.username = username;
+    item.timestamp = timestamp;
+
+    if (reward.mode == "random") {
+        int index = QRandomGenerator::global()->bounded(reward.effects.size());
+        item.effects.enqueue(reward.effects.at(index));
+    } else {
+        for (const auto& eff : reward.effects) {
+            item.effects.enqueue(eff);
+        }
+    }
+
+    {
+        QMutexLocker locker(&m_mutex);
+        m_queue.enqueue(item);
+    }
+
+    LOG_INFO(QString("Added to queue. Current queue length: %1").arg(pendingCount()));
+    emit queueUpdated(pendingCount());
+
+    if (!m_isPlaying) {
+        m_isPlaying = true;
+        processNext();
+    }
+}
+
 void QueueManager::clearQueue()
 {
     LOG_INFO("Clearing all pending events from the queue.");

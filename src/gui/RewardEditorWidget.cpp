@@ -544,6 +544,20 @@ void RewardEditorWidget::onTestClicked()
         return;
     }
 
-    // キューマネージャーにテストの引き換えリクエストを登録
-    m_app->queueManager()->enqueueRedemption(rewardId, "テスト配信者 (Test Streamer)", QDateTime::currentDateTime());
+    // 現在のUI入力内容（変更中のdurationなど）をバッファに反映
+    saveCurrentEffectToBuffer();
+
+    if (m_editingEffects.isEmpty()) {
+        QMessageBox::warning(this, "テストエラー", "演出効果が設定されていません。");
+        return;
+    }
+
+    // 現在の未保存状態を含むRewardをUIから直接組み立ててテスト再生
+    Reward r;
+    r.id   = rewardId;
+    r.name = m_nameEdit->text().trimmed();
+    r.mode = m_modeCombo->currentData().toString();
+    r.effects = m_editingEffects;
+
+    m_app->queueManager()->enqueueReward(r, "テスト配信者 (Test Streamer)", QDateTime::currentDateTime());
 }
