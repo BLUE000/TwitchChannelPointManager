@@ -314,6 +314,9 @@ void OverlayServer::setupHttpRoutes()
                     vid.autoplay = true;
                     vid.style.maxWidth = "100%";
                     vid.style.maxHeight = "80vh";
+                    // ビデオ終了で完了（duration はフォールバック上限）
+                    vid.onended = () => completeEffect();
+                    vid.onerror = () => completeEffect();
                     wrapper.appendChild(vid);
                 }
 
@@ -331,21 +334,46 @@ void OverlayServer::setupHttpRoutes()
 
                 container.appendChild(wrapper);
 
-                // 音声再生
-                if (data.effect.audioPath) {
-                    const snd = new Audio(data.effect.audioPath);
-                    snd.volume = (data.effect.volume || 80) / 100;
-                    snd.play().catch(e => console.log("Audio play blocked by browser sandbox"));
-                }
-
-                // 設定時間後に非表示にし、C++サーバーへ完了信号を送信
-                setTimeout(() => {
+                // 演出完了ハンドラ（二重呼び出し防止付き）
+                let effectDone = false;
+                let currentAudio = null;
+                const completeEffect = () => {
+                    if (effectDone) return;
+                    effectDone = true;
+                    if (currentAudio) {
+                        currentAudio.pause();
+                        currentAudio = null;
+                    }
                     wrapper.remove();
                     ws.send(JSON.stringify({
                         type: "effect_completed",
                         data: { queueId: data.queueId }
                     }));
-                }, (data.effect.duration || 5) * 1000);
+                };
+
+                // 音声再生
+                // sound タイプ: filePath が音声ファイル本体（onended で完了を検知）
+                // image/video タイプ: audioPath が補助効果音（duration で管理）
+                const audioSrc = (data.effect.type === "sound")
+                    ? data.effect.filePath
+                    : data.effect.audioPath;
+
+                if (audioSrc) {
+                    currentAudio = new Audio(audioSrc);
+                    currentAudio.volume = (data.effect.volume || 80) / 100;
+                    if (data.effect.type === "sound") {
+                        // sound タイプ: 音声終了で完了（duration は上限タイムアウト）
+                        currentAudio.onended = completeEffect;
+                        currentAudio.onerror = completeEffect;
+                    }
+                    currentAudio.play().catch(e => {
+                        console.log("Audio play blocked:", e);
+                        if (data.effect.type === "sound") completeEffect();
+                    });
+                }
+
+                // タイムアウト: image は duration 厳守、video/sound は上限フォールバック
+                setTimeout(completeEffect, (data.effect.duration || 5) * 1000);
             } else if (msg.type === "stop_all") {
                 document.getElementById("overlay-container").innerHTML = "";
             }
