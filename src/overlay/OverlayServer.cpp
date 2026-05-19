@@ -240,7 +240,9 @@ void OverlayServer::setupHttpRoutes()
     <style>
         body { margin: 0; background-color: transparent; overflow: hidden; }
         #overlay-container { width: 100vw; height: 100vh; position: relative; }
-        .overlay-item { position: absolute; text-align: center; }
+        /* max-width を vw で指定することで、位置によらず常に同じサイズで表示 */
+        .overlay-item { position: absolute; text-align: center; max-width: 80vw; box-sizing: border-box; }
+        .overlay-item img, .overlay-item video { max-width: 80vw; max-height: 80vh; display: block; }
         .overlay-text { font-weight: bold; margin-top: 10px; text-shadow: 2px 2px 4px #000; }
     </style>
 </head>
@@ -279,14 +281,15 @@ void OverlayServer::setupHttpRoutes()
                 if (data.effect.type === "image" && data.effect.filePath) {
                     const img = document.createElement("img");
                     img.src = data.effect.filePath;
-                    img.style.maxWidth = "100%";
+                    // vw/vh 基準にすることで位置によらずサイズが一定
+                    img.style.maxWidth  = "80vw";
                     img.style.maxHeight = "80vh";
                     wrapper.appendChild(img);
                 } else if (data.effect.type === "video" && data.effect.filePath) {
                     const vid = document.createElement("video");
                     vid.src = data.effect.filePath;
                     vid.autoplay = true;
-                    vid.style.maxWidth = "100%";
+                    vid.style.maxWidth  = "80vw";
                     vid.style.maxHeight = "80vh";
                     // ビデオ終了で完了（duration はフォールバック上限）
                     vid.onended = () => completeEffect();
