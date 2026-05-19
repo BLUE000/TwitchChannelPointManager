@@ -1,14 +1,19 @@
 #include "Config.hpp"
-#include "../../lib/TransCipher-Dist/include/cipher_engine.h"
+#include "ServerCipherEngine.hpp"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDebug>
 
+#ifndef TRANSCIPHER_API_TOKEN
+#define TRANSCIPHER_API_TOKEN ""
+#endif
+
 Config::Config(const QString& path, QObject* parent)
     : QObject(parent)
     , m_configPath(path)
 {
+    ServerCipherEngine::configure("https://streamers-tool.sakura.ne.jp/TransCipher/api.php", TRANSCIPHER_API_TOKEN);
 }
 
 bool Config::load()
@@ -76,8 +81,8 @@ bool Config::saveSecureString(const QString& key, const QString& plainText, cons
 
     QByteArray plainData = plainText.toUtf8();
     
-    // TransCipher-Dist を用いた暗号化の実行
-    CipherResult result = CipherEngine::encrypt(plainData, secretKey, AesMode::Mandatory);
+    // ServerCipherEngine を用いた暗号化の実行
+    ServerCipherResult result = ServerCipherEngine::encrypt(plainData, secretKey, 1 /* Mandatory */);
     if (!result.isSuccess()) {
         qWarning() << "Failed to encrypt secure string for key:" << key << "-" << result.message();
         return false;
@@ -99,8 +104,8 @@ QString Config::loadSecureString(const QString& key, const QString& secretKey, c
     QByteArray base64Data = val.toString().toUtf8();
     QByteArray cipherData = QByteArray::fromBase64(base64Data);
 
-    // TransCipher-Dist を用いた復号の実行
-    CipherResult result = CipherEngine::decrypt(cipherData, secretKey);
+    // ServerCipherEngine を用いた復号の実行
+    ServerCipherResult result = ServerCipherEngine::decrypt(cipherData, secretKey);
     if (!result.isSuccess()) {
         qWarning() << "Failed to decrypt secure string for key:" << key << "-" << result.message();
         return defaultValue;

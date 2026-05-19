@@ -47,6 +47,8 @@ set(SOURCES
     src/core/Config.cpp
     src/core/Logger.hpp
     src/core/Logger.cpp
+    src/core/ServerCipherEngine.hpp
+    src/core/ServerCipherEngine.cpp
     
     # Database
     src/database/Database.hpp
@@ -113,6 +115,18 @@ if(GIT_FOUND)
     endif()
 endif()
 
+# ==========================================
+# PHP Web APIからのトークン取得 (モック実装)
+# ==========================================
+set(TRANSCIPHER_API_TOKEN "UNAUTHORIZED_TOKEN")
+if (BUILD_IS_CUSTOMIZED EQUAL 0)
+    # 実際にはここで curl 等を使って PHP サーバーから公式トークンを取得します
+    # execute_process(COMMAND curl -s -d "hash=${GIT_DESCRIBE}" https://.../issue_token.php OUTPUT_VARIABLE TRANSCIPHER_API_TOKEN)
+    set(TRANSCIPHER_API_TOKEN "OFFICIAL_TOKEN_MOCK")
+else()
+    set(TRANSCIPHER_API_TOKEN "CUSTOMIZED_TOKEN_MOCK")
+endif()
+
 # 実行ファイルターゲットの定義
 add_executable(TwitchChannelPointManager ${SOURCES})
 
@@ -122,6 +136,7 @@ target_compile_definitions(TwitchChannelPointManager PRIVATE
     TWITCH_GLOBAL_CLIENT_SECRET="${TWITCH_GLOBAL_CLIENT_SECRET}"
     APP_VERSION_STRING="${APP_VERSION_STRING}"
     BUILD_IS_CUSTOMIZED=${BUILD_IS_CUSTOMIZED}
+    TRANSCIPHER_API_TOKEN="${TRANSCIPHER_API_TOKEN}"
 )
 
 # インクルードディレクトリの追加
@@ -138,18 +153,7 @@ target_link_libraries(TwitchChannelPointManager PRIVATE
     Qt6::WebSockets
     Qt6::HttpServer
     Qt6::Sql
-    # TransCipher-Dist リンカインポートライブラリへの直接リンク
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/TransCipher-Dist/lib/libTransCipher.dll.a
 )
-
-# ビルド後に DLL を実行ファイルと同ディレクトリへ自動コピーする設定（Windows環境向け）
-if(WIN32)
-    add_custom_command(TARGET TwitchChannelPointManager POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/TransCipher-Dist/lib/libTransCipher.dll"
-        $<TARGET_FILE_DIR:TwitchChannelPointManager>
-    )
-endif()
 
 # ==========================================
 # Google Test (GTest) 自動ビルド設定
@@ -175,6 +179,8 @@ set(TEST_SOURCES
     src/core/Config.cpp
     src/core/Logger.hpp
     src/core/Logger.cpp
+    src/core/ServerCipherEngine.hpp
+    src/core/ServerCipherEngine.cpp
     
     # Database
     src/database/Database.hpp
@@ -206,6 +212,7 @@ add_executable(TwitchChannelPointTest ${TEST_SOURCES})
 target_compile_definitions(TwitchChannelPointTest PRIVATE
     TWITCH_GLOBAL_CLIENT_ID="${TWITCH_GLOBAL_CLIENT_ID}"
     TWITCH_GLOBAL_CLIENT_SECRET="${TWITCH_GLOBAL_CLIENT_SECRET}"
+    TRANSCIPHER_API_TOKEN="${TRANSCIPHER_API_TOKEN}"
 )
 
 target_include_directories(TwitchChannelPointTest PRIVATE 
@@ -223,13 +230,4 @@ target_link_libraries(TwitchChannelPointTest PRIVATE
     Qt6::HttpServer
     Qt6::Sql
     Qt6::Test
-    ${CMAKE_CURRENT_SOURCE_DIR}/lib/TransCipher-Dist/lib/libTransCipher.dll.a
 )
-
-if(WIN32)
-    add_custom_command(TARGET TwitchChannelPointTest POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_CURRENT_SOURCE_DIR}/lib/TransCipher-Dist/lib/libTransCipher.dll"
-        $<TARGET_FILE_DIR:TwitchChannelPointTest>
-    )
-endif()
