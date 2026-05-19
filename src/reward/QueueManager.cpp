@@ -54,11 +54,13 @@ void QueueManager::enqueueRedemption(const QString& rewardId, const QString& use
     if (reward.mode == "random") {
         // ランダムモード: エフェクトリストからランダムで1つだけ選択
         int index = QRandomGenerator::global()->bounded(reward.effects.size());
-        item.effects.append(reward.effects.at(index));
+        item.effects.enqueue(reward.effects.at(index));
         LOG_INFO(QString("Random playback mode selected effect index: %1").arg(index));
     } else {
-        // 通常モード: すべてのエフェクトを順番に再生
-        item.effects = reward.effects;
+        // 通常モード: すべてのエフェクトを順番にキューにロード
+        for (const auto& eff : reward.effects) {
+            item.effects.enqueue(eff);
+        }
     }
 
     // データベースに使用ログを書き込み
@@ -120,38 +122,32 @@ void QueueManager::processNext()
     {
         QMutexLocker locker(&m_mutex);
         
+        // 全てのエフェクトを消化しきったキューアイテムを先頭から順にお掃除
+        while (!m_queue.isEmpty() && m_queue.head().effects.isEmpty()) {
+            QueueItem completedItem = m_queue.dequeue();
+            LOG_INFO(QString("Completed all effects for Queue ID: %1").arg(completedItem.queueId));
+        }
+
         if (m_queue.isEmpty()) {
             m_isPlaying = false;
             LOG_INFO("Queue is now empty. Idle state.");
             return;
         }
 
-        // 先頭のキューアイテムを取得
+        // 次に再生するべき先頭のアイテムとエフェクトの参照を取得
         currentItem = m_queue.head();
-
-        if (currentItem.currentEffectIndex < currentItem.effects.size()) {
-            currentEffect = currentItem.effects.at(currentItem.currentEffectIndex);
-            hasEffect = true;
-        } else {
-            // このアイテムの全てのエフェクトが終了したのでキューから取り除く
-            m_queue.dequeue();
-            LOG_INFO(QString("Completed all effects for Queue ID: %1").arg(currentItem.queueId));
-        }
+        currentEffect = currentItem.effects.head();
+        hasEffect = true;
     }
 
     emit queueUpdated(pendingCount());
 
     if (hasEffect) {
-        LOG_INFO(QString("Playing effect %1/%2 for Queue ID: %3 (%4)")
-            .arg(currentItem.currentEffectIndex + 1)
-            .arg(currentItem.effects.size())
+        LOG_INFO(QString("Playing next remaining effect for Queue ID: %1 (%2)")
             .arg(currentItem.queueId)
             .arg(currentEffect.type));
 
         emit playEffectRequested(currentItem, currentEffect);
-    } else {
-        // 次のキューアイテムの処理へ再帰的に移行
-        processNext();
     }
 }
 
@@ -163,8 +159,10 @@ void QueueManager::onEffectCompleted(const QString& queueId)
     {
         QMutexLocker locker(&m_mutex);
         if (!m_queue.isEmpty() && m_queue.head().queueId == queueId) {
-            // インデックスを進める
-            m_queue.head().currentEffectIndex++;
+            // 先頭エフェクトをデキューして消化
+            if (!m_queue.head().effects.isEmpty()) {
+                m_queue.head().effects.dequeue();
+            }
             valid = true;
         }
     }

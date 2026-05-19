@@ -13,8 +13,7 @@ struct QueueItem {
     QString rewardId;
     QString username;
     QDateTime timestamp;
-    QList<Effect> effects;
-    int currentEffectIndex = 0;
+    QQueue<Effect> effects; // インデックスのズレを完全に防ぐキュー構造
 };
 
 class QueueManager : public QObject {
