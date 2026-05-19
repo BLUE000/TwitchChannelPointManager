@@ -4,6 +4,7 @@
 #include <QTableWidget>
 #include <QPushButton>
 #include <QTabWidget>
+#include <QComboBox>
 
 class Application;
 
@@ -14,6 +15,7 @@ private:
     QTabWidget* m_tabWidget;
     QTableWidget* m_rankingTable;
     QTableWidget* m_userStatsTable;
+    QComboBox* m_periodCombo;
     QPushButton* m_refreshButton;
     QPushButton* m_exportCsvButton;
     QPushButton* m_resetButton;

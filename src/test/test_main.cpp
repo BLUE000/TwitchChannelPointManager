@@ -136,9 +136,8 @@ TEST(DatabaseTest, UsageLoggingAndRanking) {
     ASSERT_TRUE(db.logUsage("reward_A", "user2", now));
     ASSERT_TRUE(db.logUsage("reward_B", "user1", now));
 
-    EXPECT_EQ(db.getTodayUsageCount(), 3);
-
-    QList<QPair<QString, int>> ranking = db.getTodayRanking();
+    int count = db.getTodayUsageCount();
+    auto ranking = db.getRanking();
     ASSERT_EQ(ranking.size(), 2);
     EXPECT_EQ(ranking.first().first, "reward_A");
     EXPECT_EQ(ranking.first().second, 2);

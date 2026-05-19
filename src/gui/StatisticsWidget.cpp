@@ -24,6 +24,16 @@ void StatisticsWidget::setupUi()
 
     auto* headerLayout = new QHBoxLayout();
     headerLayout->addWidget(new QLabel("📊 統計情報", this));
+    
+    m_periodCombo = new QComboBox(this);
+    m_periodCombo->addItem("今日");
+    m_periodCombo->addItem("今週");
+    m_periodCombo->addItem("今月");
+    m_periodCombo->addItem("全期間");
+    connect(m_periodCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatisticsWidget::refreshRanking);
+    headerLayout->addWidget(new QLabel(" 表示期間:", this));
+    headerLayout->addWidget(m_periodCombo);
+    
     headerLayout->addStretch();
 
     m_exportCsvButton = new QPushButton("CSV出力", this);
@@ -43,7 +53,7 @@ void StatisticsWidget::setupUi()
 
     m_tabWidget = new QTabWidget(this);
     
-    // --- タブ1: 今日の全体ランキング ---
+    // --- タブ1: ランキング ---
     m_rankingTable = new QTableWidget(this);
     m_rankingTable->setColumnCount(3);
     m_rankingTable->setHorizontalHeaderLabels({"順位", "報酬名", "再生回数"});
@@ -52,7 +62,7 @@ void StatisticsWidget::setupUi()
     m_rankingTable->verticalHeader()->setVisible(false);
     m_rankingTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_rankingTable->setStyleSheet("QTableWidget { gridline-color: #333333; }");
-    m_tabWidget->addTab(m_rankingTable, "今日のランキング");
+    m_tabWidget->addTab(m_rankingTable, "ランキング");
 
     // --- タブ2: ユーザ別利用統計 ---
     m_userStatsTable = new QTableWidget(this);
@@ -75,8 +85,10 @@ void StatisticsWidget::refreshRanking()
 
     if (!m_app->database()) return;
 
-    // --- 今日のランキング ---
-    QList<QPair<QString, int>> ranking = m_app->database()->getTodayRanking();
+    int periodIndex = m_periodCombo->currentIndex();
+
+    // --- ランキング ---
+    QList<QPair<QString, int>> ranking = m_app->database()->getRanking(periodIndex);
     int row = 0;
     for (const auto& pair : ranking) {
         m_rankingTable->insertRow(row);
@@ -94,7 +106,7 @@ void StatisticsWidget::refreshRanking()
     }
 
     // --- ユーザ別利用統計 ---
-    QList<UserUsageStat> userStats = m_app->database()->getUserUsageStatistics();
+    QList<UserUsageStat> userStats = m_app->database()->getUserUsageStatistics(periodIndex);
     row = 0;
     for (const auto& stat : userStats) {
         m_userStatsTable->insertRow(row);

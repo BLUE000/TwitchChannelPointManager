@@ -35,8 +35,8 @@ public:
     // 演出履歴（使用ログ）の書き込み・集計
     bool logUsage(const QString& rewardId, const QString& username, const QDateTime& timestamp);
     int getTodayUsageCount();
-    QList<QPair<QString, int>> getTodayRanking();
-    QList<UserUsageStat> getUserUsageStatistics();
+    QList<QPair<QString, int>> getRanking(int periodIndex = 0);
+    QList<UserUsageStat> getUserUsageStatistics(int periodIndex = 0);
     bool clearUsageLogs();
 
     // 汎用設定（Settings）テーブルの読み書き

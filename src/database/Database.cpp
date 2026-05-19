@@ -227,22 +227,33 @@ int Database::getTodayUsageCount()
     return query.value(0).toInt();
 }
 
-QList<QPair<QString, int>> Database::getTodayRanking()
+QList<QPair<QString, int>> Database::getRanking(int periodIndex)
 {
     QList<QPair<QString, int>> ranking;
     QSqlQuery query(m_db);
     
-    QString sql = R"(
+    QString whereClause = "";
+    if (periodIndex == 0) {
+        whereClause = "WHERE date(l.timestamp) = date('now', 'localtime') ";
+    } else if (periodIndex == 1) {
+        whereClause = "WHERE strftime('%Y-%W', l.timestamp) = strftime('%Y-%W', 'now', 'localtime') ";
+    } else if (periodIndex == 2) {
+        whereClause = "WHERE strftime('%Y-%m', l.timestamp) = strftime('%Y-%m', 'now', 'localtime') ";
+    } else {
+        whereClause = ""; // 全期間
+    }
+
+    QString sql = QString(R"(
         SELECT r.name, COUNT(l.id) AS cnt 
         FROM usage_logs l 
         JOIN rewards r ON l.reward_id = r.id 
-        WHERE date(l.timestamp) = date('now', 'localtime') 
+        %1
         GROUP BY l.reward_id 
         ORDER BY cnt DESC
-    )";
+    )").arg(whereClause);
 
     if (!query.exec(sql)) {
-        LOG_ERROR("Failed to query today's ranking: " + query.lastError().text());
+        LOG_ERROR("Failed to query ranking: " + query.lastError().text());
         return ranking;
     }
 
@@ -252,19 +263,30 @@ QList<QPair<QString, int>> Database::getTodayRanking()
     return ranking;
 }
 
-QList<UserUsageStat> Database::getUserUsageStatistics()
+QList<UserUsageStat> Database::getUserUsageStatistics(int periodIndex)
 {
     QList<UserUsageStat> stats;
     QSqlQuery query(m_db);
     
-    // 全期間におけるユーザごと・報酬ごとの利用回数を集計
-    QString sql = R"(
+    QString whereClause = "";
+    if (periodIndex == 0) {
+        whereClause = "WHERE date(l.timestamp) = date('now', 'localtime') ";
+    } else if (periodIndex == 1) {
+        whereClause = "WHERE strftime('%Y-%W', l.timestamp) = strftime('%Y-%W', 'now', 'localtime') ";
+    } else if (periodIndex == 2) {
+        whereClause = "WHERE strftime('%Y-%m', l.timestamp) = strftime('%Y-%m', 'now', 'localtime') ";
+    } else {
+        whereClause = ""; // 全期間
+    }
+
+    QString sql = QString(R"(
         SELECT l.username, r.name, COUNT(l.id) AS cnt 
         FROM usage_logs l 
         JOIN rewards r ON l.reward_id = r.id 
+        %1
         GROUP BY l.username, l.reward_id 
         ORDER BY l.username ASC, cnt DESC
-    )";
+    )").arg(whereClause);
 
     if (!query.exec(sql)) {
         LOG_ERROR("Failed to query user usage statistics: " + query.lastError().text());
