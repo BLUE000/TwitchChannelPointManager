@@ -4,7 +4,10 @@
 #include <QDebug>
 #include <iostream>
 
+#include <QMutex>
+
 Logger* Logger::s_instance = nullptr;
+static QMutex s_instanceMutex;
 
 Logger::Logger(QObject* parent)
     : QObject(parent)
@@ -18,8 +21,12 @@ Logger::~Logger()
 
 Logger* Logger::instance()
 {
+    // スレッドセーフなシングルトン初期化
     if (!s_instance) {
-        s_instance = new Logger();
+        QMutexLocker locker(&s_instanceMutex);
+        if (!s_instance) { // ダブルチェックロック
+            s_instance = new Logger();
+        }
     }
     return s_instance;
 }
@@ -48,32 +55,40 @@ void Logger::shutdown()
 
 void Logger::log(LogLevel level, const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QString formattedMsg;
 
-    QString levelStr;
-    switch (level) {
-        case LogLevel::Debug:   levelStr = "DEBUG";   break;
-        case LogLevel::Info:    levelStr = "INFO ";   break;
-        case LogLevel::Warning: levelStr = "WARN ";   break;
-        case LogLevel::Error:   levelStr = "ERROR";   break;
-    }
+    {
+        QMutexLocker locker(&m_mutex);
 
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
-    QString formattedMsg = QString("[%1] [%2] %3").arg(timestamp).arg(levelStr).arg(message);
+        QString levelStr;
+        switch (level) {
+            case LogLevel::Debug:   levelStr = "DEBUG";   break;
+            case LogLevel::Info:    levelStr = "INFO ";   break;
+            case LogLevel::Warning: levelStr = "WARN ";   break;
+            case LogLevel::Error:   levelStr = "ERROR";   break;
+        }
 
-    // ファイルへ書き込み
-    if (m_logFile.isOpen()) {
-        QTextStream stream(&m_logFile);
-        stream << formattedMsg << "\n";
-        stream.flush();
-    }
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
+        formattedMsg = QString("[%1] [%2] %3").arg(timestamp).arg(levelStr).arg(message);
 
-    // 標準出力（デバッグ用コンソール）へ出力
-    if (level == LogLevel::Error || level == LogLevel::Warning) {
-        std::cerr << formattedMsg.toStdString() << std::endl;
-    } else {
-        std::cout << formattedMsg.toStdString() << std::endl;
-    }
+        // ファイルへ書き込み
+        if (m_logFile.isOpen()) {
+            QTextStream stream(&m_logFile);
+            stream << formattedMsg << "\n";
+            stream.flush();
+        }
 
+        // コンソール出力（UTF-8で正しく出力。mutexを保持したまま行う）
+        QByteArray utf8 = (formattedMsg + "\n").toUtf8();
+        if (level == LogLevel::Error || level == LogLevel::Warning) {
+            std::cerr.write(utf8.constData(), utf8.size());
+            std::cerr.flush();
+        } else {
+            std::cout.write(utf8.constData(), utf8.size());
+            std::cout.flush();
+        }
+    } // ← mutex をここで解放してから emit
+
+    // emit は mutex 解放後に行う（スロットが log() を再呼出ししてもデッドロックしない）
     emit newLogMessage(level, formattedMsg);
 }
