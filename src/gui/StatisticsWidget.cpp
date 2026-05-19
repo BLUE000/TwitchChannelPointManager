@@ -233,9 +233,8 @@ void StatisticsWidget::applyTableStyle(QTableWidget* table, const QString& prefi
     QString style = "QTableWidget { gridline-color: #333333; ";
     
     if (!bgImage.isEmpty()) {
-        style += QString("background-image: url('%1'); ").arg(bgImage);
-        style += "background-position: center; ";
-        style += "background-attachment: fixed; "; // Qt TableWidgetで背景を固定
+        // border-image を使用することで、テーブルの領域サイズに合わせて自動的に拡縮（リサイズ対応）される
+        style += QString("border-image: url('%1') 0 0 0 0 stretch stretch; ").arg(bgImage);
     }
     
     if (!textColor.isEmpty()) {
