@@ -189,11 +189,10 @@ src/
 
 ### 5.1 WebSocket通信 (アプリ ⇔ OBSブラウザソース)
 
-* **接続情報**
-  * WebSocket: `ws://localhost:28080/overlay`
-  * Asset Server (HTTP): `http://localhost:28081/assets/`
+* WebSocket: `ws://localhost:28080/overlay`
+* Asset Server (HTTP): `http://localhost:28081/assets/`
 
-#### 演出表示メッセージ
+#### 演出表示メッセージ（修正版）
 
 ```json
 {
@@ -254,37 +253,54 @@ src/
 
 ### 5.2 Asset Server (HTTP)
 
-* **エンドポイント**
-  * ベースURL: `http://localhost:28081`
-  * アセット配信: `/assets/{filename}`
-* **リクエスト例**
-  * `GET http://localhost:28081/assets/abc123.png`
-  * `GET http://localhost:28081/assets/sound456.mp3`
-  * `GET http://localhost:28081/assets/video789.webm`
-* **レスポンス**
-  * `Content-Type`: 自動判定（画像/音声/動画）
-  * `CORS`: `Access-Control-Allow-Origin: *`（ローカル環境用）
-  * `Cache-Control`: `no-cache`（開発時の更新反映のため）
-* **ファイル管理**
-  * アプリ内部で実ファイルパスとUUID（またはハッシュ）を紐付け。
-  * `FileManager` がパス変換を担当。
-    * 内部パス: `/home/user/assets/tanuki.png`
-    * 配信URL: `http://localhost:28081/assets/abc123.png`
+#### エンドポイント
+
+* ベースURL: `http://localhost:28081`
+* アセット配信: `/assets/{filename}`
+
+#### リクエスト例
+
+```bash
+GET http://localhost:28081/assets/abc123.png
+GET http://localhost:28081/assets/sound456.mp3
+GET http://localhost:28081/assets/video789.webm
+```
+
+#### レスポンス
+
+* Content-Type: 自動判定（画像/音声/動画）
+* CORS: `Access-Control-Allow-Origin: *`（ローカル環境用）
+* Cache-Control: `no-cache`（開発時の更新反映のため）
+
+#### ファイル管理
+
+* アプリ内部で実ファイルパスとUUID（またはハッシュ）を紐付け
+* `FileManager` がパス変換を担当
+  * 内部パス: `/home/user/assets/tanuki.png`
+  * 配信URL: `http://localhost:28081/assets/abc123.png`
 
 ### 5.3 パス変換フロー
 
+```markdown
 1. ユーザーが報酬編集画面でファイル選択
-2. `FileManager` が実ファイルパスを保存
-   * DB: `/home/user/assets/tanuki.png`
-3. 演出実行時、`QueueManager` が `FileManager` に問い合わせ
-4. `FileManager` が UUID を生成（またはキャッシュから取得）
-   * UUID: `abc123`
+   ↓
+2. FileManager が実ファイルパスを保存
+   - DB: "/home/user/assets/tanuki.png"
+   ↓
+3. 演出実行時、QueueManager が FileManager に問い合わせ
+   ↓
+4. FileManager が UUID を生成（またはキャッシュから取得）
+   - UUID: "abc123"
+   ↓
 5. Asset Server 用の URL に変換
-   * `http://localhost:28081/assets/abc123.png`
+   - "http://localhost:28081/assets/abc123.png"
+   ↓
 6. WebSocket で OBS に送信
+   ↓
 7. OBS ブラウザソースが HTTP 経由で安全にロード
+```
 
-### 5.4 Overlay Module の構成
+### 5.4 Overlay Module の構成（修正版）
 
 ```cpp
 // overlay/OverlayServer.hpp
@@ -293,7 +309,7 @@ private:
     QWebSocketServer* wsServer;      // WebSocket サーバー
     QHttpServer* assetServer;        // HTTP アセットサーバー
     FileManager* fileManager;        // ファイル管理
-    
+
 public:
     void startWebSocketServer(int port = 28080);
     void startAssetServer(int port = 28081);
