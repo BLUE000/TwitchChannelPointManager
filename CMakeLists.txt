@@ -118,42 +118,38 @@ endif()
 # ==========================================
 # PHP Web APIからの自動トークン取得
 # ==========================================
-set(TRANSCIPHER_TOKEN_ISSUER_URL "https://streamers-tool.sakura.ne.jp/TransCipher/auto_issue.php" CACHE STRING "URL for automated token issuance")
+set(TRANSCIPHER_TOKEN_ISSUER_URL "https://streamers-tool.sakura.ne.jp/TransCipher/index.php" CACHE STRING "URL for automated token issuance")
 set(TRANSCIPHER_BUILD_SECRET "BLUE000_BUILD_SECRET_KEY" CACHE STRING "Secret password for the build system to request tokens")
 
 set(TRANSCIPHER_API_TOKEN "UNAUTHORIZED_TOKEN")
 
+# JSON文字列の構築
+set(CURL_JSON_PAYLOAD "{\"action\":\"generate\",\"build_secret\":\"${TRANSCIPHER_BUILD_SECRET}\",\"build_hash\":\"${GIT_DESCRIBE}\",\"is_official\":")
+
 if (BUILD_IS_CUSTOMIZED EQUAL 0)
     message(STATUS "Official Build: Requesting standard API token from ${TRANSCIPHER_TOKEN_ISSUER_URL}...")
-    execute_process(
-        COMMAND curl -s -X POST 
-                -d "action=issue_official" 
-                -d "secret=${TRANSCIPHER_BUILD_SECRET}" 
-                -d "hash=${GIT_DESCRIBE}"
-                ${TRANSCIPHER_TOKEN_ISSUER_URL}
-        OUTPUT_VARIABLE FETCHED_TOKEN
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE CURL_RESULT
-    )
+    string(APPEND CURL_JSON_PAYLOAD "true}")
 else()
     message(STATUS "Customized Build: Requesting restricted API token from ${TRANSCIPHER_TOKEN_ISSUER_URL}...")
-    execute_process(
-        COMMAND curl -s -X POST 
-                -d "action=issue_restricted" 
-                -d "secret=${TRANSCIPHER_BUILD_SECRET}" 
-                -d "hash=${GIT_DESCRIBE}"
-                ${TRANSCIPHER_TOKEN_ISSUER_URL}
-        OUTPUT_VARIABLE FETCHED_TOKEN
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE CURL_RESULT
-    )
+    string(APPEND CURL_JSON_PAYLOAD "false}")
 endif()
 
-if (CURL_RESULT EQUAL 0 AND NOT "${FETCHED_TOKEN}" STREQUAL "")
-    set(TRANSCIPHER_API_TOKEN "${FETCHED_TOKEN}")
-    message(STATUS "Successfully retrieved TransCipher API Token.")
+execute_process(
+    COMMAND curl -s -X POST 
+            -H "Content-Type: application/json"
+            -d "${CURL_JSON_PAYLOAD}"
+            ${TRANSCIPHER_TOKEN_ISSUER_URL}
+    OUTPUT_VARIABLE FETCHED_JSON
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE CURL_RESULT
+)
+
+# 返却されたJSONから jq なしで簡易的にトークンを抽出する (statusがsuccessの場合のみ)
+if (CURL_RESULT EQUAL 0 AND FETCHED_JSON MATCHES "\"status\"[ \t\r\n]*:[ \t\r\n]*\"success\"" AND FETCHED_JSON MATCHES "\"token\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\"")
+    set(TRANSCIPHER_API_TOKEN "${CMAKE_MATCH_1}")
+    message(STATUS "Successfully retrieved TransCipher API Token: ${TRANSCIPHER_API_TOKEN}")
 else()
-    message(WARNING "Failed to retrieve API Token. App may not function correctly.")
+    message(WARNING "Failed to retrieve API Token. App may not function correctly. Response: ${FETCHED_JSON}")
 endif()
 
 # 実行ファイルターゲットの定義
