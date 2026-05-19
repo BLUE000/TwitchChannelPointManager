@@ -1,0 +1,3 @@
+[submodule "lib/TransCipher-Dist"]
+	path = lib/TransCipher-Dist
+	url = https://github.com/BLUE000/TransCipher-Dist.git

@@ -1,0 +1,17 @@
+# Workspace and status files
+*.code-workspace
+WIP_STATE.md
+
+# Build and temporary files (optional but good practice for C++ projects)
+build/
+bin/
+*.user
+*.suo
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+.vs/
+out/
+CMakeSettings.json
+CMakePresets.json
