@@ -37,6 +37,7 @@ private:
     QLineEdit* m_imagePathEdit;
     QLineEdit* m_audioPathEdit;
     QSpinBox* m_durationSpin;
+    QSpinBox* m_scaleSpin;    // 表示サイズ (1～100 %)
     QLineEdit* m_textEdit;
 
     // 表示位置コントロール

@@ -64,6 +64,7 @@ struct Effect {
     QString filePath;  // 画像/動画の実ファイルパス
     QString audioPath; // 音声の実ファイルパス
     int duration = 5;  // 演出時間（秒）
+    int scale = 100;   // 表示サイズ (1～100 %)
     EffectPosition position;
     QString animation = "fade"; // "fade", "slide", "bounce", "none"
     int volume = 80;            // 音量 (0 - 100)
@@ -76,6 +77,7 @@ struct Effect {
         obj.insert("filePath", filePath);
         obj.insert("audioPath", audioPath);
         obj.insert("duration", duration);
+        obj.insert("scale", scale);
         obj.insert("position", position.toJson());
         obj.insert("animation", animation);
         obj.insert("volume", volume);
@@ -90,6 +92,7 @@ struct Effect {
         eff.filePath = obj.value("filePath").toString();
         eff.audioPath = obj.value("audioPath").toString();
         eff.duration = obj.value("duration").toInt(5);
+        eff.scale = obj.value("scale").toInt(100); // 未保存時は 100%
         eff.position = EffectPosition::fromJson(obj.value("position").toObject());
         eff.animation = obj.value("animation").toString("fade");
         eff.volume = obj.value("volume").toInt(80);

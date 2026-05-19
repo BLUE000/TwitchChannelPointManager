@@ -275,7 +275,8 @@ void OverlayServer::setupHttpRoutes()
                 const posY = data.effect.position.offsetY || 540;
                 wrapper.style.left      = posX + "px";
                 wrapper.style.top       = posY + "px";
-                wrapper.style.transform = "translate(-50%, -50%)";
+                const scaleVal = (data.effect.scale !== undefined ? data.effect.scale : 100) / 100.0;
+                wrapper.style.transform = `translate(-50%, -50%) scale(${scaleVal})`;
 
                 // コンテンツ読み込み後に実サイズを測定し、
                 // 画面端に見切れないよう位置を補正する関数

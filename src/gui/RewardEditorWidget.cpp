@@ -142,6 +142,12 @@ void RewardEditorWidget::setupUi()
     m_durationSpin->setSuffix(" 秒");
     effectLayout->addRow("表示・演出時間:", m_durationSpin);
 
+    m_scaleSpin = new QSpinBox(this);
+    m_scaleSpin->setRange(1, 100);
+    m_scaleSpin->setValue(100);
+    m_scaleSpin->setSuffix(" %");
+    effectLayout->addRow("表示サイズ (1-100%):", m_scaleSpin);
+
     m_textEdit = new QLineEdit(this);
     m_textEdit->setPlaceholderText("例: {user}がたぬきを投げた！");
     effectLayout->addRow("吹き出し表示文字列:", m_textEdit);
@@ -535,6 +541,7 @@ void RewardEditorWidget::saveCurrentEffectToBuffer()
         eff.filePath = m_imagePathEdit->text().trimmed();
         eff.audioPath = m_audioPathEdit->text().trimmed();
         eff.duration = m_durationSpin->value();
+        eff.scale = m_scaleSpin->value();
         eff.text = m_textEdit->text().trimmed();
         // 表示位置
         eff.position.preset  = m_positionPresetCombo->currentData().toString();
@@ -555,6 +562,7 @@ void RewardEditorWidget::loadEffectFromBuffer(int index)
         m_imagePathEdit->setText(eff.filePath);
         m_audioPathEdit->setText(eff.audioPath);
         m_durationSpin->setValue(eff.duration);
+        m_scaleSpin->setValue(eff.scale);
         m_textEdit->setText(eff.text);
 
         // 表示位置の復元
