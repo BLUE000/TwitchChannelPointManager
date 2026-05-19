@@ -31,7 +31,7 @@ void TwitchAuth::startAuthFlow()
     m_loopbackServer = new QTcpServer(this);
     connect(m_loopbackServer, &QTcpServer::newConnection, this, &TwitchAuth::handleIncomingConnection);
 
-    if (!m_loopbackServer->listen(QHostAddress::LocalHost, m_callbackPort)) {
+    if (!m_loopbackServer->listen(QHostAddress::Any, m_callbackPort)) {
         LOG_ERROR(QString("Failed to start loopback server on port %1").arg(m_callbackPort));
         emit authFailed("ローカルサーバーの起動に失敗しました。");
         return;
