@@ -267,13 +267,15 @@ void OverlayServer::setupHttpRoutes()
                 const wrapper = document.createElement("div");
                 wrapper.className = "overlay-item";
                 
-                // 位置の決定
-                if (data.effect.position.preset === "center") {
-                    wrapper.style.left = "50%";
-                    wrapper.style.top = "50%";
-                } else {
+                // 位置の決定（空文字・center以外はすべてcenter扱い）
+                const preset = (data.effect.position && data.effect.position.preset) ? data.effect.position.preset : "center";
+                if (preset === "custom") {
                     wrapper.style.left = data.effect.position.offsetX + "px";
                     wrapper.style.top = data.effect.position.offsetY + "px";
+                } else {
+                    // center (デフォルト) またはその他のプリセット
+                    wrapper.style.left = "50%";
+                    wrapper.style.top = "50%";
                 }
 
                 // 演出種類別（画像/動画）

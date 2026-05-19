@@ -21,7 +21,8 @@ struct EffectPosition {
 
     static EffectPosition fromJson(const QJsonObject& obj) {
         EffectPosition pos;
-        pos.preset = obj.value("preset").toString("center");
+        pos.preset = obj.value("preset").toString();
+        if (pos.preset.isEmpty()) pos.preset = "center"; // 空文字はデフォルトのcenterに
         pos.offsetX = obj.value("offsetX").toInt(0);
         pos.offsetY = obj.value("offsetY").toInt(0);
         return pos;
