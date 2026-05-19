@@ -148,39 +148,44 @@ void RewardEditorWidget::setupUi()
 
     // --- 表示位置設定 ---
     m_positionPresetCombo = new QComboBox(this);
-    m_positionPresetCombo->addItem("中央 (center)",        "center");
-    m_positionPresetCombo->addItem("左上 (top_left)",      "top_left");
-    m_positionPresetCombo->addItem("右上 (top_right)",     "top_right");
-    m_positionPresetCombo->addItem("左下 (bottom_left)",   "bottom_left");
-    m_positionPresetCombo->addItem("右下 (bottom_right)",  "bottom_right");
-    m_positionPresetCombo->addItem("カスタム (手動座標)",  "custom");
+    m_positionPresetCombo->addItem("中央 (center)",       "center");
+    m_positionPresetCombo->addItem("左上 (top_left)",     "top_left");
+    m_positionPresetCombo->addItem("右上 (top_right)",    "top_right");
+    m_positionPresetCombo->addItem("左下 (bottom_left)",  "bottom_left");
+    m_positionPresetCombo->addItem("右下 (bottom_right)", "bottom_right");
+    m_positionPresetCombo->addItem("カスタム",             "custom");
     effectLayout->addRow("表示位置:", m_positionPresetCombo);
 
-    // カスタム座標の微調整ウィジェット（カスタム選択時のみ表示）
-    m_positionCustomWidget = new QWidget(this);
-    auto* customPosLayout = new QHBoxLayout(m_positionCustomWidget);
-    customPosLayout->setContentsMargins(0, 0, 0, 0);
-    customPosLayout->addWidget(new QLabel("X:", m_positionCustomWidget));
-    m_positionXSpin = new QSpinBox(m_positionCustomWidget);
+    // 座標微調整（常に表示 - プリセット選択で自動更新、手動変更も可能）
+    auto* coordWidget = new QWidget(this);
+    auto* coordLayout = new QHBoxLayout(coordWidget);
+    coordLayout->setContentsMargins(0, 0, 0, 0);
+    coordLayout->addWidget(new QLabel("X:", coordWidget));
+    m_positionXSpin = new QSpinBox(coordWidget);
     m_positionXSpin->setRange(0, 3840);
     m_positionXSpin->setValue(960);
     m_positionXSpin->setSuffix(" px");
-    customPosLayout->addWidget(m_positionXSpin);
-    customPosLayout->addSpacing(12);
-    customPosLayout->addWidget(new QLabel("Y:", m_positionCustomWidget));
-    m_positionYSpin = new QSpinBox(m_positionCustomWidget);
+    coordLayout->addWidget(m_positionXSpin);
+    coordLayout->addSpacing(12);
+    coordLayout->addWidget(new QLabel("Y:", coordWidget));
+    m_positionYSpin = new QSpinBox(coordWidget);
     m_positionYSpin->setRange(0, 2160);
     m_positionYSpin->setValue(540);
     m_positionYSpin->setSuffix(" px");
-    customPosLayout->addWidget(m_positionYSpin);
-    customPosLayout->addStretch();
-    m_positionCustomWidget->setVisible(false);
-    effectLayout->addRow("  ↳ 座標 (px):", m_positionCustomWidget);
+    coordLayout->addWidget(m_positionYSpin);
+    coordLayout->addStretch();
+    effectLayout->addRow("  ↳ 中心座標 (px):", coordWidget);
 
+    // プリセット選択時に中心座標を自動更新（1920x1080 基準）
     connect(m_positionPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this]() {
-        m_positionCustomWidget->setVisible(
-            m_positionPresetCombo->currentData().toString() == "custom");
+        const QString p = m_positionPresetCombo->currentData().toString();
+        if      (p == "center")       { m_positionXSpin->setValue(960);  m_positionYSpin->setValue(540); }
+        else if (p == "top_left")     { m_positionXSpin->setValue(200);  m_positionYSpin->setValue(150); }
+        else if (p == "top_right")    { m_positionXSpin->setValue(1720); m_positionYSpin->setValue(150); }
+        else if (p == "bottom_left")  { m_positionXSpin->setValue(200);  m_positionYSpin->setValue(930); }
+        else if (p == "bottom_right") { m_positionXSpin->setValue(1720); m_positionYSpin->setValue(930); }
+        // "custom" の場合は X/Y を変えない（ユーザが自由に入力）
     });
 
     rightLayout->addWidget(effectGroup);
@@ -553,11 +558,14 @@ void RewardEditorWidget::loadEffectFromBuffer(int index)
         m_textEdit->setText(eff.text);
 
         // 表示位置の復元
+        // blockSignals でプリセット変更時の座標自動更新を抑制し、保存済みの座標を優先する
+        m_positionPresetCombo->blockSignals(true);
         int posIndex = m_positionPresetCombo->findData(eff.position.preset);
         m_positionPresetCombo->setCurrentIndex(posIndex >= 0 ? posIndex : 0);
+        m_positionPresetCombo->blockSignals(false);
+        // 保存済み座標を復元（0 の場合はセンターのデフォルト値を使用）
         m_positionXSpin->setValue(eff.position.offsetX > 0 ? eff.position.offsetX : 960);
         m_positionYSpin->setValue(eff.position.offsetY > 0 ? eff.position.offsetY : 540);
-        m_positionCustomWidget->setVisible(eff.position.preset == "custom");
         
         // 最後の1個の場合は削除ボタンを無効にする（ダブル安全策）
         m_deleteEffectBtn->setEnabled(m_editingEffects.size() > 1);

@@ -267,39 +267,13 @@ void OverlayServer::setupHttpRoutes()
                 const wrapper = document.createElement("div");
                 wrapper.className = "overlay-item";
                 
-                // 位置の決定（プリセットまたはカスタム座標）
-                const preset = (data.effect.position && data.effect.position.preset)
-                    ? data.effect.position.preset : "center";
-
-                // 全リセット
-                wrapper.style.left = "";
-                wrapper.style.top = "";
-                wrapper.style.right = "";
-                wrapper.style.bottom = "";
-                wrapper.style.transform = "";
-
-                if (preset === "center") {
-                    wrapper.style.left = "50%";
-                    wrapper.style.top  = "50%";
-                    wrapper.style.transform = "translate(-50%, -50%)";
-                } else if (preset === "top_left") {
-                    wrapper.style.left = "5%";
-                    wrapper.style.top  = "5%";
-                } else if (preset === "top_right") {
-                    wrapper.style.right = "5%";
-                    wrapper.style.top   = "5%";
-                } else if (preset === "bottom_left") {
-                    wrapper.style.left   = "5%";
-                    wrapper.style.bottom = "5%";
-                } else if (preset === "bottom_right") {
-                    wrapper.style.right  = "5%";
-                    wrapper.style.bottom = "5%";
-                } else {
-                    // custom: offsetX/offsetY はオーバーレイ左上からのピクセル座標
-                    wrapper.style.left = (data.effect.position.offsetX || 0) + "px";
-                    wrapper.style.top  = (data.effect.position.offsetY || 0) + "px";
-                    wrapper.style.transform = "translate(-50%, -50%)";
-                }
+                // 位置の決定: 常に offsetX/offsetY の中心座標で描画
+                // プリセット選択時は C++ 側で X/Y を設定済み。0 の場合はセンター(960,540)を使用
+                const posX = data.effect.position.offsetX || 960;
+                const posY = data.effect.position.offsetY || 540;
+                wrapper.style.left      = posX + "px";
+                wrapper.style.top       = posY + "px";
+                wrapper.style.transform = "translate(-50%, -50%)";
 
                 // 演出種類別（画像/動画）
                 if (data.effect.type === "image" && data.effect.filePath) {
