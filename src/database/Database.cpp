@@ -252,6 +252,36 @@ QList<QPair<QString, int>> Database::getTodayRanking()
     return ranking;
 }
 
+QList<UserUsageStat> Database::getUserUsageStatistics()
+{
+    QList<UserUsageStat> stats;
+    QSqlQuery query(m_db);
+    
+    // 全期間におけるユーザごと・報酬ごとの利用回数を集計
+    QString sql = R"(
+        SELECT l.username, r.name, COUNT(l.id) AS cnt 
+        FROM usage_logs l 
+        JOIN rewards r ON l.reward_id = r.id 
+        GROUP BY l.username, l.reward_id 
+        ORDER BY l.username ASC, cnt DESC
+    )";
+
+    if (!query.exec(sql)) {
+        LOG_ERROR("Failed to query user usage statistics: " + query.lastError().text());
+        return stats;
+    }
+
+    while (query.next()) {
+        stats.append({
+            query.value(0).toString(),
+            query.value(1).toString(),
+            query.value(2).toInt()
+        });
+    }
+
+    return stats;
+}
+
 bool Database::saveSetting(const QString& key, const QString& value)
 {
     QSqlQuery query(m_db);

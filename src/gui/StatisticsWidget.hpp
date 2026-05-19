@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QTableWidget>
 #include <QPushButton>
+#include <QTabWidget>
 
 class Application;
 
@@ -10,7 +11,9 @@ class StatisticsWidget : public QWidget {
     Q_OBJECT
 private:
     Application* m_app;
+    QTabWidget* m_tabWidget;
     QTableWidget* m_rankingTable;
+    QTableWidget* m_userStatsTable;
     QPushButton* m_refreshButton;
 
 public:

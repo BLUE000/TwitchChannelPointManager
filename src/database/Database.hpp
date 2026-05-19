@@ -7,6 +7,12 @@
 #include <QDateTime>
 #include "../reward/Reward.hpp"
 
+struct UserUsageStat {
+    QString username;
+    QString rewardName;
+    int count;
+};
+
 class Database : public QObject {
     Q_OBJECT
 private:
@@ -30,6 +36,7 @@ public:
     bool logUsage(const QString& rewardId, const QString& username, const QDateTime& timestamp);
     int getTodayUsageCount();
     QList<QPair<QString, int>> getTodayRanking();
+    QList<UserUsageStat> getUserUsageStatistics();
 
     // 汎用設定（Settings）テーブルの読み書き
     bool saveSetting(const QString& key, const QString& value);
