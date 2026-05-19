@@ -1,0 +1,139 @@
+# テスト仕様書
+
+本仕様書は、Google Test (GTest) および Qt Test ユーティリティを用いて、アプリケーションの主要モジュールを検証するための単体テストおよび統合テストケースを定義します。
+画面（GUI）からの要求は、シグナル発火およびモックオブジェクトによって再現し、ヘッドレス（画面非表示）環境でも検証可能な設計とします。
+
+---
+
+## 1. テスト環境・戦略 (Test Strategy)
+
+### 1.1 使用フレームワーク
+- **Google Test (GTest)**: ロジック、データ永続化、暗号化処理の検証。
+- **Qt Test (QTest/QSignalSpy)**: シグナル・スロットの非同期バインディング、およびイベントループ連動処理の検証。
+
+### 1.2 画面（GUI）からの要求の再現
+ウィジェットの直接操作をシミュレートする代わりに、ウィジェットからコアに対して発火する Qt シグナルをテストドライバで直接発火させるか、モッククラスから要求メソッドを呼び出して挙動を検証します。
+
+```text
+[単体テストドライバ] ──── (直接シグナル発火/メソッド呼出) ───► [コアモジュール]
+        ▲
+        │ (QSignalSpyによる検証)
+        └─────────────────────────────────────────────── [シグナル検知・アサート]
+```
+
+---
+
+## 2. モジュール別テストケース定義
+
+### 2.1 Core モジュール (`core/Config`)
+
+暗号化設定ファイル（`TransCipher-Dist` 依存）の正常動作を検証します。
+
+| テストケースID | テスト対象機能 | テスト内容・手順 | 期待される結果 (アサート) |
+| :--- | :--- | :--- | :--- |
+| `TC_CFG_001` | 基本設定ロード・保存 | 値をセットし、ファイルに `save()` した後、別のインスタンスで `load()` する。 | 保存したキーと値が完全に一致すること。 |
+| `TC_CFG_002` | 暗号化保存 (TransCipher) | `saveSecureString()` にて Twitch アクセストークンを暗号化保存する。 | 保存された JSON 内の値が平文ではなく Base64 難読文字列であること。 |
+| `TC_CFG_003` | 復号読み込み (TransCipher) | 保存された暗号トークンを正しいシークレットキーで `loadSecureString()` する。 | 元の平文トークンが完全に復元されること。 |
+| `TC_CFG_004` | 復号失敗チェック | 間違ったシークレットキーを用いて `loadSecureString()` する。 | 復号エラーが発生し、デフォルト値（または空）が返却されること。 |
+
+---
+
+### 2.2 Database モジュール (`database/Database`)
+
+SQLite を使用したデータ永続化、ログ履歴、マイグレーションを検証します。メモリDB（`:memory:`）を使用することで、ファイル汚染を防ぎます。
+
+| テストケースID | テスト対象機能 | テスト内容・手順 | 期待される結果 (アサート) |
+| :--- | :--- | :--- | :--- |
+| `TC_DB_001` | テーブル自動生成 | メモリDBをオープンする。 | テーブル `rewards`, `usage_logs`, `settings` が自動生成され存在すること。 |
+| `TC_DB_002` | 報酬データの保存・読込 (CRUD) | `Reward` 構造体（複数エフェクト含む）を作成し `saveReward()` し、`loadRewards()` で復元。 | 復元された報酬ID、名前、エフェクト定義、JSON配列データが完全に一致すること。 |
+| `TC_DB_003` | ログ記録と統計 | 同一の報酬に対して `logUsage()` を3回実行し、`getTodayUsageCount()` を呼び出す。 | カウントが正確に `3` となること。 |
+| `TC_DB_004` | 本日のランキング集計 | 報酬Aに3回、報酬Bに1回ログを記録し、`getTodayRanking()` を取得する。 | リストの先頭が報酬A（回数3）、2番目が報酬B（回数1）となること。 |
+
+---
+
+### 2.3 Reward マジュール (`reward/RewardManager` & `QueueManager`)
+
+クールタイム、バリデーション、および非同期再生キューを検証します。GUIからの保存・削除要求は API 直接呼び出しで模擬します。
+
+| テストケースID | テスト対象機能 | テスト内容・手順 | 期待される結果 (アサート) |
+| :--- | :--- | :--- | :--- |
+| `TC_RWD_001` | 有効性チェック | 無効化された報酬ID（`enabled = false`）を `validateRedemption()` でチェック。 | 戻り値が `false` であり、拒否理由が得られること。 |
+| `TC_RWD_002` | クールダウン処理 | 演出発生時に `triggerCooldown()` を呼び出し、直後に再度 `validateRedemption()` を実行。 | クールダウン中のため `false` が返り、残り秒数が判定文字列に含まれること。 |
+| `TC_QUE_001` | キュー制御 (Sequential) | 2つの演出を含むアイテムを `enqueueRedemption()` に投入。 | `playEffectRequested()` が1番目の演出パラメータで発火すること。 |
+| `TC_QUE_002` | キュー遷移確認 (非同期) | 1番目の演出に対してモックOBS完了信号 `onEffectCompleted()` をスロットへ送信。 | 次の演出が自動的に取り出され、2番目の `playEffectRequested()` が発火すること。 |
+| `TC_QUE_003` | パニック停止 (緊急割込) | 演出再生中に `stopAllEffects()` を実行。 | キューが瞬時に空となり、`isPlaying` が `false` になり、`stopAllRequested()` が発火すること。 |
+
+---
+
+### 2.4 Overlay モジュール (`overlay/FileManager` & `OverlayServer`)
+
+パス暗号化変換と WebSocket 配信を検証します。
+
+| テストケースID | テスト対象機能 | テスト内容・手順 | 期待される結果 (アサート) |
+| :--- | :--- | :--- | :--- |
+| `TC_OVL_001` | パス UUID 秘匿変換 | 絶対パス `/home/user/pic.png` を `registerAsset()` する。 | `http://localhost:28081/assets/{UUID}.png` 形式に変換され、実パスが隠蔽されること。 |
+| `TC_OVL_002` | アセット逆引き | 変換されたアセットIDから `getRealPath()` で解決を図る。 | 元の絶対パス `/home/user/pic.png` が正確に復元されること。 |
+| `TC_OVL_003` | WebSocket配信（結合） | モックの `QWebSocket` クライアントを接続し、`sendEffect()` を実行。 | クライアントが受信したテキストメッセージが、正しい JSON 構造の `show_effect` であること。 |
+
+---
+
+## 3. シグナルとスロットによる結合テスト構造
+
+テストドライバにおいて、以下のように実クラス間でシグナルとスロットを接続し、QSignalSpyを用いてフローを追跡します。
+
+```cpp
+// 結合テストコード例 (Google Test + Qt Test)
+TEST_F(OverlayIntegrationTest, TestFullSignalFlow) {
+    Database db;
+    db.open(":memory:");
+    
+    // テスト用の報酬データを用意して登録
+    Reward r;
+    r.id = "reward_tanuki";
+    r.name = "たぬき投げ";
+    r.enabled = true;
+    r.cooldown = 10;
+    
+    Effect eff;
+    eff.type = "image";
+    eff.filePath = "C:/assets/tanuki.png";
+    r.effects.append(eff);
+    db.saveReward(r);
+
+    RewardManager rewardManager(&db);
+    rewardManager.loadAllRewards();
+
+    QueueManager queueManager(&db);
+    FileManager fileManager(28081);
+    OverlayServer overlayServer(&fileManager);
+
+    // シグナル・スロット結合
+    QObject::connect(&queueManager, &QueueManager::playEffectRequested,
+                     &overlayServer, &OverlayServer::sendEffect);
+
+    // シグナルのスパイを設定
+    QSignalSpy playSpy(&queueManager, &QueueManager::playEffectRequested);
+    QSignalSpy serverSpy(&overlayServer, &OverlayServer::effectFinished);
+
+    // 1. GUIからの要求（EventSub経由のトリガーを模擬）
+    QString reason;
+    ASSERT_TRUE(rewardManager.validateRedemption("reward_tanuki", "ViewerA", reason));
+    rewardManager.triggerCooldown("reward_tanuki");
+    queueManager.enqueueRedemption("reward_tanuki", "ViewerA", QDateTime::currentDateTime());
+
+    // playEffectRequested シグナルが正しく発火されたかアサート
+    ASSERT_EQ(playSpy.count(), 1);
+    
+    // 送信された情報を取り出して検証
+    QList<QVariant> arguments = playSpy.takeFirst();
+    QueueItem playedItem = arguments.at(0).value<QueueItem>();
+    ASSERT_EQ(playedItem.rewardId, "reward_tanuki");
+    ASSERT_EQ(playedItem.username, "ViewerA");
+
+    // 2. OBSからの再生完了信号（画面のモック）を受信したと仮定
+    overlayServer.onTextMessageReceived(R"({"type": "effect_completed", "data": {"queueId": ")" + playedItem.queueId + R"("}})");
+
+    // キューが正常に進み、完了ログが残ったことを検証
+    ASSERT_EQ(db.getTodayUsageCount(), 1);
+}
+```
