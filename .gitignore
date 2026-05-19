@@ -4,6 +4,7 @@ WIP_STATE.md
 
 # Build and temporary files (optional but good practice for C++ projects)
 build/
+build-release/
 bin/
 *.user
 *.suo
@@ -22,3 +23,7 @@ config.json
 credentials.cmake
 twitch_overlay.log
 *.log
+
+# Distribution releases and ZIP packages
+release_*/
+*.zip
