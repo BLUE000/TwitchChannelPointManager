@@ -84,6 +84,35 @@ set(SOURCES
     src/gui/SettingsWidget.cpp
 )
 
+# ==========================================
+# ビルド時のウォーターマーク（改変検知）機能
+# ==========================================
+set(BUILD_IS_CUSTOMIZED "0")
+find_package(Git)
+if(GIT_FOUND)
+    # 未コミットのローカル変更があるかチェック
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} status --porcelain
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_STATUS
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    # 公式タグからのズレ（追加コミットやdirty状態）があるかチェック
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_DESCRIBE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    
+    if(NOT "${GIT_STATUS}" STREQUAL "")
+        set(BUILD_IS_CUSTOMIZED "1")
+    elseif("${GIT_DESCRIBE}" MATCHES "-dirty" OR "${GIT_DESCRIBE}" MATCHES "-g[0-9a-f]+")
+        # -dirtyが含まれる、または -gHASH が含まれる（タグ以降のコミットがある）場合
+        set(BUILD_IS_CUSTOMIZED "1")
+    endif()
+endif()
+
 # 実行ファイルターゲットの定義
 add_executable(TwitchChannelPointManager ${SOURCES})
 
@@ -92,6 +121,7 @@ target_compile_definitions(TwitchChannelPointManager PRIVATE
     TWITCH_GLOBAL_CLIENT_ID="${TWITCH_GLOBAL_CLIENT_ID}"
     TWITCH_GLOBAL_CLIENT_SECRET="${TWITCH_GLOBAL_CLIENT_SECRET}"
     APP_VERSION_STRING="${APP_VERSION_STRING}"
+    BUILD_IS_CUSTOMIZED=${BUILD_IS_CUSTOMIZED}
 )
 
 # インクルードディレクトリの追加

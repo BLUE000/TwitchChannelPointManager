@@ -5,16 +5,28 @@
 #include "SettingsWidget.hpp"
 #include "../core/Application.hpp"
 #include <QVBoxLayout>
+#include <QStatusBar>
 
 #ifndef APP_VERSION_STRING
 #define APP_VERSION_STRING "Unknown"
+#endif
+
+#ifndef BUILD_IS_CUSTOMIZED
+#define BUILD_IS_CUSTOMIZED 0
 #endif
 
 MainWindow::MainWindow(Application* app, QWidget* parent)
     : QMainWindow(parent)
     , m_app(app)
 {
-    setWindowTitle(QString("Twitch Channel Point Manager - v%1").arg(APP_VERSION_STRING));
+    if (BUILD_IS_CUSTOMIZED) {
+        setWindowTitle(QString("Twitch Channel Point Manager - v%1 (Customized Build)").arg(APP_VERSION_STRING));
+        statusBar()->showMessage("⚠️ この実行ファイルはソースコードが改変された非公式のカスタムビルドです。");
+        statusBar()->setStyleSheet("color: #FF5252; font-weight: bold; background-color: #121214;");
+    } else {
+        setWindowTitle(QString("Twitch Channel Point Manager - v%1").arg(APP_VERSION_STRING));
+    }
+    
     resize(850, 600);
 
     setupUi();
