@@ -130,6 +130,7 @@ src/
 | type | Enum | Image / Video / Audio / Text |
 | filePath | String | ファイルパス |
 | duration | Integer | 表示時間(秒) |
+| scale | Integer | 表示サイズ(1-100%) |
 | position | Object | 表示位置 |
 | ├─ preset | String | プリセット名 |
 | ├─ offsetX | Integer | X オフセット |
@@ -204,6 +205,7 @@ src/
       "filePath": "http://localhost:28081/assets/abc123.png",
       "audioPath": "http://localhost:28081/assets/sound456.mp3",
       "duration": 5,
+      "scale": 100,
       "position": {
         "preset": "center",
         "offsetX": 0,
@@ -415,6 +417,7 @@ public:
 │ │                                  │ │ 画像/動画: [path/to/file][参照]│ │
 │ │                                  │ │ 効果音  : [path/to/audio][参照]│ │
 │ │                                  │ │ 表示時間: [5] 秒               │ │
+│ │                                  │ │ 表示サイズ: [100] %            │ │
 │ │                                  │ │ 吹き出し: [例: {user}が投ゲ...]│ │
 │ └──────────────────────────────────┘ └────────────────────────────────┘ │
 │ ┌──────────────┐ ┌───────────────┐ ┌──────────────┐ ┌─────────────────┐ │
