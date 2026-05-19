@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QTimer>
 
 TwitchAuth::TwitchAuth(const QString& clientId, const QString& clientSecret, int port, QObject* parent)
     : QObject(parent)
@@ -97,7 +98,9 @@ void TwitchAuth::readClientData()
                     LOG_INFO("Authorization code successfully received from browser redirect.");
                     sendHtmlResponse(socket, true);
                     socket->disconnectFromHost();
-                    stopLoopbackServer(); // 認証コードが取得できたのでサーバーを停止
+                    
+                    // HTMLレスポンスがブラウザに完全に送信される時間を与えるため、200ミリ秒後にサーバーを安全に停止
+                    QTimer::singleShot(200, this, &TwitchAuth::stopLoopbackServer);
 
                     // トークン取得処理へ
                     exchangeCodeForToken(code);
@@ -153,6 +156,8 @@ void TwitchAuth::sendHtmlResponse(QTcpSocket* socket, bool success)
     ).arg(title).arg(color).arg(statusText).arg(subText);
 
     os << html;
+    os.flush();
+    socket->flush();
 }
 
 void TwitchAuth::exchangeCodeForToken(const QString& authCode)
