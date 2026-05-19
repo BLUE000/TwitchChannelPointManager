@@ -99,9 +99,9 @@ src/
     ├── FileUtils                  # ファイル操作
     └── NetworkUtils               # ネットワーク補助
 
-3. データ構造
+## 3. データ構造
 
-3.1 報酬データ (Reward)
+### 3.1 報酬データ (Reward)
 
 | 項目 | 型 | 説明 |
 | :--- | :--- | :--- |
@@ -109,12 +109,12 @@ src/
 | name | String | 報酬名 |
 | cost | Integer | ポイント数 |
 | cooldown | Integer | クールタイム(秒) |
-| allowedRoles | List\<String\> | 使用可能ロール |
+| allowedRoles | `List<String>` | 使用可能ロール |
 | enabled | Boolean | 有効/無効 |
 | mode | Enum | Sequential / Random |
-| effects | List\<Effect\> | 演出リスト |
+| effects | `List<Effect>` | 演出リスト |
 
-3.2 演出データ (Effect)
+### 3.2 演出データ (Effect)
 
 | 項目 | 型 | 説明 |
 | :--- | :--- | :--- |
@@ -131,7 +131,7 @@ src/
 | text | String | テキスト(オプション) |
 | probability | Integer | 確率 (ランダムモード時) |
 
-3.3 キューアイテム (QueueItem)
+### 3.3 キューアイテム (QueueItem)
 
 | 項目 | 型 | 説明 |
 | :--- | :--- | :--- |
@@ -139,12 +139,12 @@ src/
 | rewardId | String | 報酬ID |
 | username | String | 使用ユーザー |
 | timestamp | DateTime | 使用日時 |
-| effects | List\<Effect\> | 実行する演出リスト |
+| effects | `List<Effect>` | 実行する演出リスト |
 | currentEffectIndex | Integer | 現在の演出インデックス |
 
-4. データベース設計
+## 4. データベース設計
 
-4.1 テーブル構成
+### 4.1 テーブル構成
 
 #### rewards テーブル
 
