@@ -269,21 +269,43 @@ void OverlayServer::setupHttpRoutes()
                 const wrapper = document.createElement("div");
                 wrapper.className = "overlay-item";
                 
-                // 位置の決定: 常に offsetX/offsetY の中心座標で描画
-                // プリセット選択時は C++ 側で X/Y を設定済み。0 の場合はセンター(960,540)を使用
+                // 位置の決定: offsetX/offsetY = コンテンツ中心点（ピクセル座標）
+                // 0 の場合はセンター(960, 540)を使用
                 const posX = data.effect.position.offsetX || 960;
                 const posY = data.effect.position.offsetY || 540;
                 wrapper.style.left      = posX + "px";
                 wrapper.style.top       = posY + "px";
                 wrapper.style.transform = "translate(-50%, -50%)";
 
+                // コンテンツ読み込み後に実サイズを測定し、
+                // 画面端に見切れないよう位置を補正する関数
+                const clampToViewport = () => {
+                    const rect = wrapper.getBoundingClientRect();
+                    const vw   = window.innerWidth;
+                    const vh   = window.innerHeight;
+                    let newX = posX;
+                    let newY = posY;
+                    // 左・上への見切れを補正（右・下方向にずらす）
+                    if (rect.left   < 0)  newX += (-rect.left);
+                    if (rect.top    < 0)  newY += (-rect.top);
+                    // 右・下への見切れを補正（左・上方向にずらす）
+                    if (rect.right  > vw) newX -= (rect.right  - vw);
+                    if (rect.bottom > vh) newY -= (rect.bottom - vh);
+                    if (newX !== posX || newY !== posY) {
+                        wrapper.style.left = newX + "px";
+                        wrapper.style.top  = newY + "px";
+                    }
+                };
+
                 // 演出種類別（画像/動画）
                 if (data.effect.type === "image" && data.effect.filePath) {
                     const img = document.createElement("img");
                     img.src = data.effect.filePath;
-                    // vw/vh 基準にすることで位置によらずサイズが一定
                     img.style.maxWidth  = "80vw";
                     img.style.maxHeight = "80vh";
+                    // 画像ロード完了後に実サイズを測定して見切れを補正
+                    img.onload  = clampToViewport;
+                    img.onerror = clampToViewport;
                     wrapper.appendChild(img);
                 } else if (data.effect.type === "video" && data.effect.filePath) {
                     const vid = document.createElement("video");
@@ -291,6 +313,8 @@ void OverlayServer::setupHttpRoutes()
                     vid.autoplay = true;
                     vid.style.maxWidth  = "80vw";
                     vid.style.maxHeight = "80vh";
+                    // メタデータ取得完了後に実サイズを測定して見切れを補正
+                    vid.onloadedmetadata = clampToViewport;
                     // ビデオ終了で完了（duration はフォールバック上限）
                     vid.onended = () => completeEffect();
                     vid.onerror = () => completeEffect();
