@@ -1,5 +1,6 @@
 #include "Database.hpp"
 #include "../core/Logger.hpp"
+#include "../core/Constants.hpp"
 #include <QSqlError>
 #include <QVariant>
 #include <QJsonDocument>
@@ -151,13 +152,13 @@ bool Database::loadRewards(QList<Reward>& rewards)
     rewards.clear();
     while (query.next()) {
         Reward r;
-        r.id = query.value(0).toString();
-        r.name = query.value(1).toString();
-        r.cost = query.value(2).toInt();
-        r.cooldown = query.value(3).toInt();
+        r.id = query.value(Constants::COL_REWARD_ID).toString();
+        r.name = query.value(Constants::COL_REWARD_NAME).toString();
+        r.cost = query.value(Constants::COL_REWARD_COST).toInt();
+        r.cooldown = query.value(Constants::COL_REWARD_COOLDOWN).toInt();
         
         // ロールのパース
-        QJsonDocument rolesDoc = QJsonDocument::fromJson(query.value(4).toString().toUtf8());
+        QJsonDocument rolesDoc = QJsonDocument::fromJson(query.value(Constants::COL_REWARD_ALLOWED_ROLES).toString().toUtf8());
         if (rolesDoc.isArray()) {
             QJsonArray rolesArr = rolesDoc.array();
             for (const auto& val : rolesArr) {
@@ -165,11 +166,11 @@ bool Database::loadRewards(QList<Reward>& rewards)
             }
         }
 
-        r.enabled = query.value(5).toInt() != 0;
-        r.mode = query.value(6).toString();
+        r.enabled = query.value(Constants::COL_REWARD_ENABLED).toInt() != 0;
+        r.mode = query.value(Constants::COL_REWARD_MODE).toString();
 
         // 演出のパース
-        QJsonDocument effectsDoc = QJsonDocument::fromJson(query.value(7).toString().toUtf8());
+        QJsonDocument effectsDoc = QJsonDocument::fromJson(query.value(Constants::COL_REWARD_EFFECTS).toString().toUtf8());
         if (effectsDoc.isArray()) {
             QJsonArray effectsArr = effectsDoc.array();
             for (const auto& val : effectsArr) {
