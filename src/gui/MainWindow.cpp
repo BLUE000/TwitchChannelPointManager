@@ -10,7 +10,7 @@ MainWindow::MainWindow(Application* app, QWidget* parent)
     : QMainWindow(parent)
     , m_app(app)
 {
-    setWindowTitle("Twitch Channel Point Manager - Version 2.0.0");
+    setWindowTitle("Twitch Channel Point Manager - v1.0β");
     resize(850, 600);
 
     setupUi();

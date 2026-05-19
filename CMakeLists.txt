@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(TwitchChannelPointManager VERSION 2.0.0 LANGUAGES CXX)
+project(TwitchChannelPointManager VERSION 1.0.0 LANGUAGES CXX)
 
 # ==========================================
 # ローカル認証情報のインクルード（Git管理外）
