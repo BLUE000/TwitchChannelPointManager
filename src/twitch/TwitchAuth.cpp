@@ -82,28 +82,33 @@ void TwitchAuth::readClientData()
 
     // GET リクエストから認可コードを抽出
     if (requestStr.startsWith("GET")) {
-        int firstSpace = requestStr.indexOf(' ');
-        int secondSpace = requestStr.indexOf(' ', firstSpace + 1);
-        QString path = requestStr.mid(firstSpace + 1, secondSpace - firstSpace - 1);
+        QStringList lines = requestStr.split('\n');
+        if (!lines.isEmpty()) {
+            QString firstLine = lines.first();
+            QStringList parts = firstLine.split(' ');
+            if (parts.size() >= 2) {
+                QString path = parts.at(1);
+                QUrl url("http://localhost" + path);
+                QUrlQuery query(url.query());
 
-        QUrl url("http://localhost" + path);
-        QUrlQuery query(url.query());
+                if (query.hasQueryItem("code")) {
+                    QString code = query.queryItemValue("code");
+                    LOG_INFO("Authorization code successfully received from browser redirect.");
+                    sendHtmlResponse(socket, true);
+                    socket->disconnectFromHost();
+                    stopLoopbackServer(); // 認証コードが取得できたのでサーバーを停止
 
-        if (query.hasQueryItem("code")) {
-            QString code = query.queryItemValue("code");
-            LOG_INFO("Authorization code successfully received from browser redirect.");
-            sendHtmlResponse(socket, true);
-            socket->disconnectFromHost();
-            stopLoopbackServer(); // 認証コードが取得できたのでサーバーを停止
-
-            // トークン取得処理へ
-            exchangeCodeForToken(code);
-        } else {
-            LOG_WARN("Redirect received, but authorization code was missing.");
-            sendHtmlResponse(socket, false);
-            socket->disconnectFromHost();
-            emit authFailed("認証コードの取得に失敗しました。");
+                    // トークン取得処理へ
+                    exchangeCodeForToken(code);
+                    return;
+                }
+            }
         }
+        
+        LOG_WARN("Redirect received, but authorization code was missing or malformed.");
+        sendHtmlResponse(socket, false);
+        socket->disconnectFromHost();
+        emit authFailed("認証コードの取得に失敗しました。");
     }
 }
 
