@@ -15,3 +15,9 @@ bin/
 out/
 CMakeSettings.json
 CMakePresets.json
+
+# Local databases and runtime configuration
+*.db
+config.json
+twitch_overlay.log
+*.log
