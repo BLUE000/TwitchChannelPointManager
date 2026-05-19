@@ -116,15 +116,44 @@ if(GIT_FOUND)
 endif()
 
 # ==========================================
-# PHP Web APIからのトークン取得 (モック実装)
+# PHP Web APIからの自動トークン取得
 # ==========================================
+set(TRANSCIPHER_TOKEN_ISSUER_URL "https://streamers-tool.sakura.ne.jp/TransCipher/auto_issue.php" CACHE STRING "URL for automated token issuance")
+set(TRANSCIPHER_BUILD_SECRET "BLUE000_BUILD_SECRET_KEY" CACHE STRING "Secret password for the build system to request tokens")
+
 set(TRANSCIPHER_API_TOKEN "UNAUTHORIZED_TOKEN")
+
 if (BUILD_IS_CUSTOMIZED EQUAL 0)
-    # 実際にはここで curl 等を使って PHP サーバーから公式トークンを取得します
-    # execute_process(COMMAND curl -s -d "hash=${GIT_DESCRIBE}" https://.../issue_token.php OUTPUT_VARIABLE TRANSCIPHER_API_TOKEN)
-    set(TRANSCIPHER_API_TOKEN "OFFICIAL_TOKEN_MOCK")
+    message(STATUS "Official Build: Requesting standard API token from ${TRANSCIPHER_TOKEN_ISSUER_URL}...")
+    execute_process(
+        COMMAND curl -s -X POST 
+                -d "action=issue_official" 
+                -d "secret=${TRANSCIPHER_BUILD_SECRET}" 
+                -d "hash=${GIT_DESCRIBE}"
+                ${TRANSCIPHER_TOKEN_ISSUER_URL}
+        OUTPUT_VARIABLE FETCHED_TOKEN
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE CURL_RESULT
+    )
 else()
-    set(TRANSCIPHER_API_TOKEN "CUSTOMIZED_TOKEN_MOCK")
+    message(STATUS "Customized Build: Requesting restricted API token from ${TRANSCIPHER_TOKEN_ISSUER_URL}...")
+    execute_process(
+        COMMAND curl -s -X POST 
+                -d "action=issue_restricted" 
+                -d "secret=${TRANSCIPHER_BUILD_SECRET}" 
+                -d "hash=${GIT_DESCRIBE}"
+                ${TRANSCIPHER_TOKEN_ISSUER_URL}
+        OUTPUT_VARIABLE FETCHED_TOKEN
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE CURL_RESULT
+    )
+endif()
+
+if (CURL_RESULT EQUAL 0 AND NOT "${FETCHED_TOKEN}" STREQUAL "")
+    set(TRANSCIPHER_API_TOKEN "${FETCHED_TOKEN}")
+    message(STATUS "Successfully retrieved TransCipher API Token.")
+else()
+    message(WARNING "Failed to retrieve API Token. App may not function correctly.")
 endif()
 
 # 実行ファイルターゲットの定義
