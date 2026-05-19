@@ -195,9 +195,19 @@ void OverlayServer::onClientDisconnected()
 void OverlayServer::setupHttpRoutes()
 {
     // アセット配信用ルート
-    m_httpServer->route("/assets/<path>", [this](const QString& filename) {
+    // NOTE: <arg> を使用。<path> はルートパス全体を取得するQtの挙動があり、
+    //       UUIDファイル名がスラッシュを含まないため <arg> で正確にマッチする。
+    m_httpServer->route("/assets/<arg>", [this](const QString& rawFilename) {
+        // 先頭スラッシュなど余分な文字を除去して正規化
+        QString filename = rawFilename;
+        while (filename.startsWith('/')) {
+            filename = filename.mid(1);
+        }
+
+        LOG_INFO("Asset requested: " + filename);
         QString realPath = m_fileManager->getRealPath(filename);
         if (realPath.isEmpty()) {
+            LOG_WARN("Asset not found in registry: " + filename);
             return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
         }
 
