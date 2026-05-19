@@ -39,6 +39,7 @@ void MainWindow::setupUi()
     // 全体の基本スタイル
     setStyleSheet(R"(
         QMainWindow { background-color: #121214; }
+        QDialog { background-color: #121214; }
         QTabWidget::pane { border: 1px solid #29292E; background-color: #1D1D22; top: -1px; }
         QTabBar::tab { background-color: #121214; color: #A9A9B2; border: 1px solid #29292E; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
         QTabBar::tab:selected { background-color: #1D1D22; color: #FFFFFF; border-bottom-color: #1D1D22; font-weight: bold; }
