@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QColorDialog>
 #include <QFile>
 #include <QTextStream>
 
@@ -15,6 +16,7 @@ StatisticsWidget::StatisticsWidget(Application* app, QWidget* parent)
     , m_app(app)
 {
     setupUi();
+    loadStyles();
     refreshRanking();
 }
 
@@ -54,6 +56,19 @@ void StatisticsWidget::setupUi()
     m_tabWidget = new QTabWidget(this);
     
     // --- タブ1: ランキング ---
+    QWidget* tab1 = new QWidget(this);
+    auto* tab1Layout = new QVBoxLayout(tab1);
+    
+    auto* tab1Controls = new QHBoxLayout();
+    m_rankingBgBtn = new QPushButton("背景画像設定...", this);
+    m_rankingColorBtn = new QPushButton("文字色設定...", this);
+    connect(m_rankingBgBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeRankingBg);
+    connect(m_rankingColorBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeRankingColor);
+    tab1Controls->addWidget(m_rankingBgBtn);
+    tab1Controls->addWidget(m_rankingColorBtn);
+    tab1Controls->addStretch();
+    tab1Layout->addLayout(tab1Controls);
+
     m_rankingTable = new QTableWidget(this);
     m_rankingTable->setColumnCount(3);
     m_rankingTable->setHorizontalHeaderLabels({"順位", "報酬名", "再生回数"});
@@ -61,10 +76,23 @@ void StatisticsWidget::setupUi()
     m_rankingTable->horizontalHeader()->setStretchLastSection(true);
     m_rankingTable->verticalHeader()->setVisible(false);
     m_rankingTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_rankingTable->setStyleSheet("QTableWidget { gridline-color: #333333; }");
-    m_tabWidget->addTab(m_rankingTable, "ランキング");
+    tab1Layout->addWidget(m_rankingTable);
+    m_tabWidget->addTab(tab1, "ランキング");
 
     // --- タブ2: ユーザ別利用統計 ---
+    QWidget* tab2 = new QWidget(this);
+    auto* tab2Layout = new QVBoxLayout(tab2);
+
+    auto* tab2Controls = new QHBoxLayout();
+    m_userStatsBgBtn = new QPushButton("背景画像設定...", this);
+    m_userStatsColorBtn = new QPushButton("文字色設定...", this);
+    connect(m_userStatsBgBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeUserStatsBg);
+    connect(m_userStatsColorBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeUserStatsColor);
+    tab2Controls->addWidget(m_userStatsBgBtn);
+    tab2Controls->addWidget(m_userStatsColorBtn);
+    tab2Controls->addStretch();
+    tab2Layout->addLayout(tab2Controls);
+
     m_userStatsTable = new QTableWidget(this);
     m_userStatsTable->setColumnCount(3);
     m_userStatsTable->setHorizontalHeaderLabels({"ユーザ名", "報酬名", "利用回数"});
@@ -72,8 +100,8 @@ void StatisticsWidget::setupUi()
     m_userStatsTable->horizontalHeader()->setStretchLastSection(true);
     m_userStatsTable->verticalHeader()->setVisible(false);
     m_userStatsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_userStatsTable->setStyleSheet("QTableWidget { gridline-color: #333333; }");
-    m_tabWidget->addTab(m_userStatsTable, "ユーザ別利用統計");
+    tab2Layout->addWidget(m_userStatsTable);
+    m_tabWidget->addTab(tab2, "ユーザ別利用統計");
 
     mainLayout->addWidget(m_tabWidget);
 }
@@ -186,5 +214,74 @@ void StatisticsWidget::onResetClicked()
         } else {
             QMessageBox::critical(this, "エラー", "統計のリセットに失敗しました。");
         }
+    }
+}
+
+void StatisticsWidget::loadStyles()
+{
+    applyTableStyle(m_rankingTable, "stats_ranking");
+    applyTableStyle(m_userStatsTable, "stats_user");
+}
+
+void StatisticsWidget::applyTableStyle(QTableWidget* table, const QString& prefix)
+{
+    if (!m_app->database()) return;
+    
+    QString bgImage = m_app->database()->getSetting(prefix + "_bg", "");
+    QString textColor = m_app->database()->getSetting(prefix + "_color", "");
+
+    QString style = "QTableWidget { gridline-color: #333333; ";
+    
+    if (!bgImage.isEmpty()) {
+        style += QString("background-image: url('%1'); ").arg(bgImage);
+        style += "background-position: center; ";
+        style += "background-attachment: fixed; "; // Qt TableWidgetで背景を固定
+    }
+    
+    if (!textColor.isEmpty()) {
+        style += QString("color: %1; ").arg(textColor);
+    }
+    
+    style += "} ";
+    
+    // セル背景を透明にして画像を見せる
+    style += "QTableWidget::item { background-color: transparent; } ";
+    
+    table->setStyleSheet(style);
+}
+
+void StatisticsWidget::onChangeRankingBg()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, "背景画像を選択（キャンセルでクリア）", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+    if (m_app->database()) {
+        m_app->database()->saveSetting("stats_ranking_bg", fileName);
+        applyTableStyle(m_rankingTable, "stats_ranking");
+    }
+}
+
+void StatisticsWidget::onChangeRankingColor()
+{
+    QColor color = QColorDialog::getColor(Qt::white, this, "文字色を選択");
+    if (color.isValid() && m_app->database()) {
+        m_app->database()->saveSetting("stats_ranking_color", color.name());
+        applyTableStyle(m_rankingTable, "stats_ranking");
+    }
+}
+
+void StatisticsWidget::onChangeUserStatsBg()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, "背景画像を選択（キャンセルでクリア）", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+    if (m_app->database()) {
+        m_app->database()->saveSetting("stats_user_bg", fileName);
+        applyTableStyle(m_userStatsTable, "stats_user");
+    }
+}
+
+void StatisticsWidget::onChangeUserStatsColor()
+{
+    QColor color = QColorDialog::getColor(Qt::white, this, "文字色を選択");
+    if (color.isValid() && m_app->database()) {
+        m_app->database()->saveSetting("stats_user_color", color.name());
+        applyTableStyle(m_userStatsTable, "stats_user");
     }
 }

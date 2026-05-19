@@ -20,6 +20,11 @@ private:
     QPushButton* m_exportCsvButton;
     QPushButton* m_resetButton;
 
+    QPushButton* m_rankingBgBtn;
+    QPushButton* m_rankingColorBtn;
+    QPushButton* m_userStatsBgBtn;
+    QPushButton* m_userStatsColorBtn;
+
 public:
     explicit StatisticsWidget(Application* app, QWidget* parent = nullptr);
     ~StatisticsWidget() = default;
@@ -29,7 +34,13 @@ public:
 private slots:
     void onExportCsvClicked();
     void onResetClicked();
+    void onChangeRankingBg();
+    void onChangeRankingColor();
+    void onChangeUserStatsBg();
+    void onChangeUserStatsColor();
 
 private:
     void setupUi();
+    void applyTableStyle(QTableWidget* table, const QString& prefix);
+    void loadStyles();
 };
