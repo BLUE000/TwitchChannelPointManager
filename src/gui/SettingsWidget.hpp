@@ -7,6 +7,9 @@
 
 class Application;
 
+class QCheckBox;
+class QGroupBox;
+
 class SettingsWidget : public QWidget {
     Q_OBJECT
 private:
@@ -16,6 +19,8 @@ private:
     QSpinBox* m_httpPortSpin;
     QPushButton* m_savePortsBtn;
 
+    QCheckBox* m_useCustomCredentialsCb;
+    QGroupBox* m_customCredentialsGroup;
     QLineEdit* m_clientIdEdit;
     QLineEdit* m_clientSecretEdit;
     QLineEdit* m_broadcasterIdEdit;

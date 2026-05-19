@@ -6,6 +6,8 @@
 #include <QMap>
 #include <QUrl>
 #include <QBuffer>
+#include <QTimer>
+#include <QDebug>
 
 // テスト用にHTTPレスポンスを偽装するカスタム QNetworkReply
 class MockNetworkReply : public QNetworkReply {
@@ -26,12 +28,16 @@ public:
         setAttribute(QNetworkRequest::HttpStatusCodeAttribute, statusCode);
         setHeader(QNetworkRequest::ContentTypeHeader, contentType);
 
+        setOpenMode(QIODevice::ReadOnly);
+        setError(QNetworkReply::NoError, "No error");
+        setFinished(true);
+
         // レプライが完了したことをスロットへ非同期通知するために即座にタイマー起動
-        QMetaObject::invokeMethod(this, [this]() {
-            open(QIODevice::ReadOnly);
+        QTimer::singleShot(0, this, [this]() {
+            qDebug() << "MockNetworkReply: SingleShot triggered! Emitting readyRead and finished.";
             emit readyRead();
             emit finished();
-        }, Qt::QueuedConnection);
+        });
     }
 
     ~MockNetworkReply() override = default;
@@ -82,6 +88,7 @@ protected:
         Q_UNUSED(outgoingData);
 
         QUrl url = request.url();
+        qDebug() << "MockNetworkAccessManager::createRequest called for URL:" << url.toString();
         int statusCode = 404;
         QByteArray responseData = R"({"error": "Stubbed response not found"})";
 

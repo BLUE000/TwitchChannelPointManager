@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHttpServerResponse>
+#include <QTcpServer>
 
 OverlayServer::OverlayServer(FileManager* fileManager, QObject* parent)
     : QObject(parent)
@@ -44,13 +45,15 @@ bool OverlayServer::start(int wsPort, int httpPort)
     m_httpServer = new QHttpServer(this);
     setupHttpRoutes();
 
-    if (!m_httpServer->listen(QHostAddress::Any, m_httpPort)) {
+    auto* tcpServer = new QTcpServer(this);
+    if (!tcpServer->listen(QHostAddress::Any, m_httpPort)) {
         LOG_ERROR(QString("Failed to start HTTP server on port %1").arg(m_httpPort));
         m_wsServer->close();
         m_wsServer->deleteLater();
         m_wsServer = nullptr;
         return false;
     }
+    m_httpServer->bind(tcpServer);
     LOG_INFO(QString("HTTP Asset Server listening on port %1").arg(m_httpPort));
 
     return true;
@@ -208,9 +211,11 @@ void OverlayServer::setupHttpRoutes()
         file.close();
 
         // レスポンスの構築（CORS ヘッダー & キャッシュ防止ヘッダー付与）
-        QHttpServerResponse response(getMimeType(realPath), fileData);
-        response.setHeader("Access-Control-Allow-Origin", "*");
-        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        QHttpServerResponse response(getMimeType(realPath).toUtf8(), fileData);
+        QHttpHeaders headers;
+        headers.append("Access-Control-Allow-Origin", "*");
+        headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeaders(headers);
         return response;
     });
 
@@ -316,7 +321,9 @@ void OverlayServer::setupHttpRoutes()
         )").arg(m_wsPort);
 
         QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
-        response.setHeader("Access-Control-Allow-Origin", "*");
+        QHttpHeaders headers;
+        headers.append("Access-Control-Allow-Origin", "*");
+        response.setHeaders(headers);
         return response;
     });
 }

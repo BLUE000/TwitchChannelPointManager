@@ -1,6 +1,11 @@
 #include "RewardEditorWidget.hpp"
 #include "../core/Application.hpp"
+#include "../core/Config.hpp"
+#include "../twitch/TwitchAuth.hpp"
 #include "../reward/RewardManager.hpp"
+#include <QLabel>
+#include <QDialog>
+#include <QJsonObject>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -14,6 +19,12 @@ RewardEditorWidget::RewardEditorWidget(Application* app, QWidget* parent)
 {
     setupUi();
     reloadRewardsList();
+
+    // Twitchの報酬取得用シグナル接続
+    if (m_app->twitchAuth()) {
+        connect(m_app->twitchAuth(), &TwitchAuth::customRewardsFetched, this, &RewardEditorWidget::onCustomRewardsFetched);
+        connect(m_app->twitchAuth(), &TwitchAuth::customRewardsFetchFailed, this, &RewardEditorWidget::onCustomRewardsFetchFailed);
+    }
 }
 
 void RewardEditorWidget::setupUi()
@@ -29,10 +40,18 @@ void RewardEditorWidget::setupUi()
     connect(m_rewardsList, &QListWidget::itemClicked, this, &RewardEditorWidget::onRewardSelected);
     leftLayout->addWidget(m_rewardsList);
 
-    m_newButton = new QPushButton("新規報酬の登録", this);
-    m_newButton->setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;");
+    m_newButton = new QPushButton("新規演出を登録", this);
+    m_newButton->setStyleSheet("background-color: #2E7D32; color: white; font-weight: bold; padding: 6px;");
     connect(m_newButton, &QPushButton::clicked, this, &RewardEditorWidget::onNewClicked);
-    leftLayout->addWidget(m_newButton);
+
+    m_syncButton = new QPushButton("🔄 Twitch同期", this);
+    m_syncButton->setStyleSheet("background-color: #6441A5; color: white; font-weight: bold; padding: 6px;");
+    connect(m_syncButton, &QPushButton::clicked, this, &RewardEditorWidget::onSyncClicked);
+
+    auto* listBtnLayout = new QHBoxLayout();
+    listBtnLayout->addWidget(m_newButton);
+    listBtnLayout->addWidget(m_syncButton);
+    leftLayout->addLayout(listBtnLayout);
 
     mainLayout->addLayout(leftLayout);
 
@@ -42,7 +61,7 @@ void RewardEditorWidget::setupUi()
     auto* formLayout = new QFormLayout(formGroup);
 
     m_idEdit = new QLineEdit(this);
-    m_idEdit->setPlaceholderText("Twitchのカスタム報酬IDをコピペ");
+    m_idEdit->setPlaceholderText("左のリストから選択するか、Twitchカスタム報酬IDを入力");
     formLayout->addRow("報酬 ID (Twitch):", m_idEdit);
 
     m_nameEdit = new QLineEdit(this);
@@ -73,6 +92,25 @@ void RewardEditorWidget::setupUi()
     // 演出効果の設定グループ
     auto* effectGroup = new QGroupBox("演出効果（エフェクト）設定", this);
     auto* effectLayout = new QFormLayout(effectGroup);
+
+    // 複数演出の切り替え・追加・削除コントロール
+    auto* selectorLayout = new QHBoxLayout();
+    m_effectSelectorCombo = new QComboBox(this);
+    m_effectSelectorCombo->setMinimumWidth(180);
+    connect(m_effectSelectorCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RewardEditorWidget::onEffectSelectorChanged);
+    
+    m_addEffectBtn = new QPushButton("＋ 演出を追加", this);
+    m_addEffectBtn->setStyleSheet("background-color: #2E7D32; color: white; font-weight: bold; padding: 4px 8px;");
+    connect(m_addEffectBtn, &QPushButton::clicked, this, &RewardEditorWidget::onAddEffectClicked);
+    
+    m_deleteEffectBtn = new QPushButton("❌ 削除", this);
+    m_deleteEffectBtn->setStyleSheet("background-color: #C62828; color: white; padding: 4px 8px;");
+    connect(m_deleteEffectBtn, &QPushButton::clicked, this, &RewardEditorWidget::onDeleteEffectClicked);
+    
+    selectorLayout->addWidget(m_effectSelectorCombo, 1);
+    selectorLayout->addWidget(m_addEffectBtn);
+    selectorLayout->addWidget(m_deleteEffectBtn);
+    effectLayout->addRow("編集対象の演出:", selectorLayout);
 
     m_effectTypeCombo = new QComboBox(this);
     m_effectTypeCombo->addItem("画像のみ (image)", "image");
@@ -129,10 +167,37 @@ void RewardEditorWidget::setupUi()
 void RewardEditorWidget::reloadRewardsList()
 {
     m_rewardsList->clear();
-    QList<Reward> list = m_app->rewardManager()->getAllRewards();
-    for (const auto& r : list) {
-        auto* item = new QListWidgetItem(QString("%1 (%2)").arg(r.name).arg(r.cost), m_rewardsList);
+    
+    // 1. まずローカルのSQLiteデータベースから取得して、初期表示する（即時表示で体感を良くする）
+    QList<Reward> localList = m_app->rewardManager()->getAllRewards();
+    for (const auto& r : localList) {
+        auto* item = new QListWidgetItem(QString("🟡 [読込中] %1 (%2pt)").arg(r.name).arg(r.cost), m_rewardsList);
         item->setData(Qt::UserRole, r.id);
+        item->setData(Qt::UserRole + 1, true); // ローカル設定あり
+        item->setData(Qt::UserRole + 2, r.name);
+        item->setData(Qt::UserRole + 3, r.cost);
+        item->setForeground(QBrush(QColor("#A9A9B2"))); // 読み込み中は少し薄い色
+    }
+
+    // 2. Twitch連携情報がある場合、バックグラウンドで最新データを取得しマージする
+    QString secretKey = "twitch_overlay_secret_key_2026";
+    QString access = m_app->config()->loadSecureString("twitch_access_token", secretKey);
+    QString broadcasterId = m_app->config()->get("twitch_broadcaster_id").toString();
+    QString clientId = m_app->config()->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
+
+    if (!access.isEmpty() && !broadcasterId.isEmpty()) {
+        m_app->twitchAuth()->fetchCustomRewards(access, clientId, broadcasterId);
+    } else {
+        // 未連携の場合は、ローカルデータのみで「オフライン」として確定表示する
+        m_rewardsList->clear();
+        for (const auto& r : localList) {
+            auto* item = new QListWidgetItem(QString("🟢 [設定済] %1 (%2pt)").arg(r.name).arg(r.cost), m_rewardsList);
+            item->setData(Qt::UserRole, r.id);
+            item->setData(Qt::UserRole + 1, true);
+            item->setData(Qt::UserRole + 2, r.name);
+            item->setData(Qt::UserRole + 3, r.cost);
+            item->setForeground(QBrush(QColor("#FFFFFF")));
+        }
     }
 }
 
@@ -141,34 +206,51 @@ void RewardEditorWidget::onRewardSelected(QListWidgetItem* item)
     if (!item) return;
 
     QString rewardId = item->data(Qt::UserRole).toString();
-    Reward r;
-    if (m_app->rewardManager()->getReward(rewardId, r)) {
-        m_idEdit->setText(r.id);
-        m_nameEdit->setText(r.name);
-        m_costSpin->setValue(r.cost);
-        m_cooldownSpin->setValue(r.cooldown);
-        m_enabledCheck->setChecked(r.enabled);
+    bool isConfigured = item->data(Qt::UserRole + 1).toBool();
 
-        int modeIndex = m_modeCombo->findData(r.mode);
-        if (modeIndex >= 0) m_modeCombo->setCurrentIndex(modeIndex);
+    m_editingEffects.clear();
+    m_currentEffectIndex = -1;
 
-        // エフェクトがあれば簡易ロード
-        if (!r.effects.isEmpty()) {
-            Effect eff = r.effects.first();
-            int typeIndex = m_effectTypeCombo->findData(eff.type);
-            if (typeIndex >= 0) m_effectTypeCombo->setCurrentIndex(typeIndex);
-            
-            m_imagePathEdit->setText(eff.filePath);
-            m_audioPathEdit->setText(eff.audioPath);
-            m_durationSpin->setValue(eff.duration);
-            m_textEdit->setText(eff.text);
-        } else {
-            m_imagePathEdit->clear();
-            m_audioPathEdit->clear();
-            m_durationSpin->setValue(5);
-            m_textEdit->clear();
+    if (isConfigured) {
+        // すでにローカルDBにある場合：DBから読み込む
+        Reward r;
+        if (m_app->rewardManager()->getReward(rewardId, r)) {
+            m_idEdit->setText(r.id);
+            m_nameEdit->setText(r.name);
+            m_costSpin->setValue(r.cost);
+            m_cooldownSpin->setValue(r.cooldown);
+            m_enabledCheck->setChecked(r.enabled);
+
+            int modeIndex = m_modeCombo->findData(r.mode);
+            if (modeIndex >= 0) m_modeCombo->setCurrentIndex(modeIndex);
+
+            m_editingEffects = r.effects;
         }
+    } else {
+        // Twitchにはあるが、ローカル未設定の場合：Twitchのデータでフォームを初期化
+        QString name = item->data(Qt::UserRole + 2).toString();
+        int cost = item->data(Qt::UserRole + 3).toInt();
+
+        m_idEdit->setText(rewardId);
+        m_nameEdit->setText(name);
+        m_costSpin->setValue(cost);
+        m_cooldownSpin->setValue(0);
+        m_enabledCheck->setChecked(true);
+        m_modeCombo->setCurrentIndex(0);
     }
+
+    // 演出リストが空の場合は必ず1つデフォルトの演出を追加（最後の1つを削除させない設計に準拠）
+    if (m_editingEffects.isEmpty()) {
+        Effect eff;
+        eff.type = "image";
+        eff.duration = 5;
+        m_editingEffects.append(eff);
+    }
+
+    // コンボボックスを更新して最初のエフェクトを表示
+    m_currentEffectIndex = 0;
+    updateEffectSelectorCombo();
+    loadEffectFromBuffer(0);
 }
 
 void RewardEditorWidget::onSaveClicked()
@@ -176,9 +258,15 @@ void RewardEditorWidget::onSaveClicked()
     QString rewardId = m_idEdit->text().trimmed();
     QString name = m_nameEdit->text().trimmed();
 
-    if (rewardId.isEmpty() || name.isEmpty()) {
-        QMessageBox::warning(this, "入力エラー", "報酬IDと報酬名は必ず入力してください。");
-        return;
+    saveCurrentEffectToBuffer();
+
+    // 全てのエフェクトに何らかの演出が設定されているか検証
+    for (int i = 0; i < m_editingEffects.size(); ++i) {
+        const auto& eff = m_editingEffects[i];
+        if (eff.filePath.isEmpty() && eff.audioPath.isEmpty() && eff.text.isEmpty()) {
+            QMessageBox::warning(this, "演出効果未設定", QString("演出 %1 の画像/動画、効果音、または表示文字列のいずれかを入力してください。").arg(i + 1));
+            return;
+        }
     }
 
     Reward r;
@@ -190,21 +278,7 @@ void RewardEditorWidget::onSaveClicked()
     r.enabled = m_enabledCheck->isChecked();
     r.allowedRoles.append("everyone"); // デフォルト値
 
-    // 単一エフェクトの構築
-    Effect eff;
-    eff.type = m_effectTypeCombo->currentData().toString();
-    eff.filePath = m_imagePathEdit->text().trimmed();
-    eff.audioPath = m_audioPathEdit->text().trimmed();
-    eff.duration = m_durationSpin->value();
-    eff.text = m_textEdit->text().trimmed();
-    
-    // 画像/動画/音声のいずれかがセットされていること
-    if (eff.filePath.isEmpty() && eff.audioPath.isEmpty() && eff.text.isEmpty()) {
-        QMessageBox::warning(this, "エフェクト未設定", "画像、効果音、テキストのいずれか一つは設定してください。");
-        return;
-    }
-
-    r.effects.append(eff);
+    r.effects = m_editingEffects;
 
     if (m_app->rewardManager()->saveReward(r)) {
         QMessageBox::information(this, "成功", "報酬設定をデータベースに保存しました。");
@@ -260,4 +334,192 @@ void RewardEditorWidget::selectAudioPath()
     if (!path.isEmpty()) {
         m_audioPathEdit->setText(path);
     }
+}
+
+void RewardEditorWidget::onSyncClicked()
+{
+    QString secretKey = "twitch_overlay_secret_key_2026";
+    QString access = m_app->config()->loadSecureString("twitch_access_token", secretKey);
+    QString broadcasterId = m_app->config()->get("twitch_broadcaster_id").toString();
+    QString clientId = m_app->config()->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
+
+    if (access.isEmpty() || broadcasterId.isEmpty()) {
+        QMessageBox::warning(this, "未連携", "Twitch 連携が行われていません。「システム設定」タブから Twitch 連携を完了してください。");
+        return;
+    }
+
+    QMessageBox::information(this, "同期中", "Twitch から最新のチャンネルポイント報酬情報を取得しています...");
+    m_app->twitchAuth()->fetchCustomRewards(access, clientId, broadcasterId);
+}
+
+void RewardEditorWidget::onCustomRewardsFetched(const QJsonArray& rewards)
+{
+    // 現在のローカルデータベースの状態を取得
+    QList<Reward> localList = m_app->rewardManager()->getAllRewards();
+    QMap<QString, Reward> localMap;
+    for (const auto& r : localList) {
+        localMap.insert(r.id, r);
+    }
+
+    m_rewardsList->clear();
+
+    // 取得したTwitchの報酬一覧をループ
+    QSet<QString> twitchIds;
+    for (int i = 0; i < rewards.size(); ++i) {
+        QJsonObject rewardObj = rewards.at(i).toObject();
+        QString id = rewardObj.value("id").toString();
+        QString title = rewardObj.value("title").toString();
+        int cost = rewardObj.value("cost").toInt();
+        twitchIds.insert(id);
+
+        if (localMap.contains(id)) {
+            // ① ローカルに設定済みのTwitch報酬：緑色で表示
+            auto* item = new QListWidgetItem(QString("🟢 [設定済] %1 (%2pt)").arg(title).arg(cost), m_rewardsList);
+            item->setData(Qt::UserRole, id);
+            item->setData(Qt::UserRole + 1, true); // 設定済み
+            item->setData(Qt::UserRole + 2, title);
+            item->setData(Qt::UserRole + 3, cost);
+            item->setForeground(QBrush(QColor("#FFFFFF"))); // 明るい白文字
+        } else {
+            // ② ローカルに設定されていないTwitch報酬：グレー（薄色）で表示
+            auto* item = new QListWidgetItem(QString("⚪ [未設定] %1 (%2pt)").arg(title).arg(cost), m_rewardsList);
+            item->setData(Qt::UserRole, id);
+            item->setData(Qt::UserRole + 1, false); // 未設定
+            item->setData(Qt::UserRole + 2, title);
+            item->setData(Qt::UserRole + 3, cost);
+            item->setForeground(QBrush(QColor("#A9A9B2"))); // グレーアウト文字
+        }
+    }
+
+    // ③ ローカルデータベースには存在するが、Twitch APIからは取得できなかったもの（オフライン状態等）：黄色
+    for (const auto& r : localList) {
+        if (!twitchIds.contains(r.id)) {
+            auto* item = new QListWidgetItem(QString("🟡 [オフライン] %1 (%2pt)").arg(r.name).arg(r.cost), m_rewardsList);
+            item->setData(Qt::UserRole, r.id);
+            item->setData(Qt::UserRole + 1, true); // 設定自体はある
+            item->setData(Qt::UserRole + 2, r.name);
+            item->setData(Qt::UserRole + 3, r.cost);
+            item->setForeground(QBrush(QColor("#E6A23C"))); // オレンジ/イエロー
+        }
+    }
+}
+
+void RewardEditorWidget::onCustomRewardsFetchFailed(const QString& errorMessage)
+{
+    // 取得に失敗した場合は、ローカルデータのみで確定表示にする
+    QList<Reward> localList = m_app->rewardManager()->getAllRewards();
+    m_rewardsList->clear();
+    for (const auto& r : localList) {
+        auto* item = new QListWidgetItem(QString("🟢 [設定済] %1 (%2pt)").arg(r.name).arg(r.cost), m_rewardsList);
+        item->setData(Qt::UserRole, r.id);
+        item->setData(Qt::UserRole + 1, true);
+        item->setData(Qt::UserRole + 2, r.name);
+        item->setData(Qt::UserRole + 3, r.cost);
+        item->setForeground(QBrush(QColor("#FFFFFF")));
+    }
+    
+    QMessageBox::warning(this, "同期エラー", errorMessage + "\nローカルの保存データのみを表示します。");
+}
+
+void RewardEditorWidget::onEffectSelectorChanged(int index)
+{
+    if (index < 0 || index >= m_editingEffects.size()) return;
+
+    // 現在の演出をバッファに保存
+    saveCurrentEffectToBuffer();
+
+    // 新しく選択された演出をロード
+    loadEffectFromBuffer(index);
+}
+
+void RewardEditorWidget::onAddEffectClicked()
+{
+    // 現在の入力を保存
+    saveCurrentEffectToBuffer();
+
+    // デフォルトの新しい演出を追加
+    Effect eff;
+    eff.type = "image";
+    eff.duration = 5;
+    m_editingEffects.append(eff);
+
+    // インデックスを新しく追加されたものに進める
+    m_currentEffectIndex = m_editingEffects.size() - 1;
+    updateEffectSelectorCombo();
+    loadEffectFromBuffer(m_currentEffectIndex);
+
+    QMessageBox::information(this, "演出追加", QString("演出 %1 を新規追加しました。\n種類とアセットファイルを設定してください。").arg(m_editingEffects.size()));
+}
+
+void RewardEditorWidget::onDeleteEffectClicked()
+{
+    if (m_editingEffects.size() <= 1) {
+        // 最後の1個は絶対に削除させない
+        QMessageBox::warning(this, "削除不可", "報酬には最低でも1つの演出効果が必要です（最後のエフェクトは削除できません）。");
+        return;
+    }
+
+    auto result = QMessageBox::question(this, "演出削除", QString("演出 %1 をリストから削除しますか？").arg(m_currentEffectIndex + 1), QMessageBox::Yes | QMessageBox::No);
+    if (result == QMessageBox::Yes) {
+        m_editingEffects.removeAt(m_currentEffectIndex);
+
+        // インデックスを範囲内に調整
+        if (m_currentEffectIndex >= m_editingEffects.size()) {
+            m_currentEffectIndex = m_editingEffects.size() - 1;
+        }
+
+        updateEffectSelectorCombo();
+        loadEffectFromBuffer(m_currentEffectIndex);
+    }
+}
+
+void RewardEditorWidget::saveCurrentEffectToBuffer()
+{
+    if (m_currentEffectIndex >= 0 && m_currentEffectIndex < m_editingEffects.size()) {
+        Effect& eff = m_editingEffects[m_currentEffectIndex];
+        eff.type = m_effectTypeCombo->currentData().toString();
+        eff.filePath = m_imagePathEdit->text().trimmed();
+        eff.audioPath = m_audioPathEdit->text().trimmed();
+        eff.duration = m_durationSpin->value();
+        eff.text = m_textEdit->text().trimmed();
+    }
+}
+
+void RewardEditorWidget::loadEffectFromBuffer(int index)
+{
+    if (index >= 0 && index < m_editingEffects.size()) {
+        m_currentEffectIndex = index;
+        const Effect& eff = m_editingEffects[index];
+        
+        int typeIndex = m_effectTypeCombo->findData(eff.type);
+        if (typeIndex >= 0) m_effectTypeCombo->setCurrentIndex(typeIndex);
+        
+        m_imagePathEdit->setText(eff.filePath);
+        m_audioPathEdit->setText(eff.audioPath);
+        m_durationSpin->setValue(eff.duration);
+        m_textEdit->setText(eff.text);
+        
+        // 最後の1個の場合は削除ボタンを無効にする（ダブル安全策）
+        m_deleteEffectBtn->setEnabled(m_editingEffects.size() > 1);
+    }
+}
+
+void RewardEditorWidget::updateEffectSelectorCombo()
+{
+    m_effectSelectorCombo->blockSignals(true);
+    m_effectSelectorCombo->clear();
+    for (int i = 0; i < m_editingEffects.size(); ++i) {
+        const Effect& eff = m_editingEffects[i];
+        QString typeLabel = "画像";
+        if (eff.type == "video") typeLabel = "動画";
+        else if (eff.type == "sound") typeLabel = "音響";
+        
+        m_effectSelectorCombo->addItem(QString("演出 %1: [%2]").arg(i + 1).arg(typeLabel));
+    }
+    if (m_currentEffectIndex >= 0 && m_currentEffectIndex < m_editingEffects.size()) {
+        m_effectSelectorCombo->setCurrentIndex(m_currentEffectIndex);
+    }
+    m_effectSelectorCombo->blockSignals(false);
+    
+    m_deleteEffectBtn->setEnabled(m_editingEffects.size() > 1);
 }

@@ -61,14 +61,14 @@ bool Application::initialize(const QString& dbPath, const QString& configPath)
     // 9. Twitch 認証 & EventSub 受信機の初期化
     // シークレット情報はローカル設定、または暗号化ストレージから読み出し
     QString secretKey = "twitch_overlay_secret_key_2026";
-    QString clientId = m_config->get("twitch_client_id", "MOCK_CLIENT_ID_XYZ123").toString();
+    QString clientId = m_config->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
     QString encryptedSecret = m_config->get("twitch_client_secret", "").toString();
     QString decryptedSecret = "";
     
     if (!encryptedSecret.isEmpty()) {
         decryptedSecret = m_config->loadSecureString("twitch_client_secret", secretKey);
     } else {
-        decryptedSecret = "MOCK_CLIENT_SECRET_ABC789";
+        decryptedSecret = TWITCH_GLOBAL_CLIENT_SECRET;
     }
 
     m_twitchAuth = std::make_unique<TwitchAuth>(clientId, decryptedSecret, 28082, this);
@@ -133,19 +133,19 @@ void Application::setupSignalConnections()
             m_queueManager.get(), &QueueManager::onEffectCompleted);
 
     // 5. Twitch 認証成功 -> 暗号化して設定ファイルに自動保管するセキュア処理
-    connect(m_twitchAuth.get(), &TwitchAuth::authSuccess, [this](const QString& access, const QString& refresh) {
+    connect(m_twitchAuth.get(), &TwitchAuth::authSuccess, [this](const QString& access, const QString& refresh, const QString& broadcasterId) {
         LOG_INFO("Received successful OAuth token exchange. Saving securely using TransCipher-Dist...");
         QString secretKey = "twitch_overlay_secret_key_2026";
         
         m_config->saveSecureString("twitch_access_token", access, secretKey);
         m_config->saveSecureString("twitch_refresh_token", refresh, secretKey);
+        m_config->set("twitch_broadcaster_id", broadcasterId); // 自動取得した配信者IDを設定に保存！
         m_config->save(); // ファイル書き込み保存
 
         LOG_INFO("Credentials stored safely. Automatically establishing EventSub WebSocket connection.");
         
         // トークン情報を用いてEventSubへ自動接続
-        QString clientId = m_config->get("twitch_client_id", "MOCK_CLIENT_ID_XYZ123").toString();
-        QString broadcasterId = m_config->get("twitch_broadcaster_id", "MOCK_BROADCASTER_ID_777").toString();
+        QString clientId = m_config->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
         
         m_twitchEventSub->connectToServer(access, clientId, broadcasterId);
     });

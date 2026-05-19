@@ -32,7 +32,7 @@ QString FileManager::registerAsset(const QString& absolutePath)
     QString suffix = fileInfo.suffix();
     
     // 新しい UUID を生成
-    QString uuid = QUuid::createUuid().toString(QUuid::IdHeaderType::WithoutBraces);
+    QString uuid = QUuid::createUuid().toString().replace("{", "").replace("}", "");
     QString assetId = suffix.isEmpty() ? uuid : QString("%1.%2").arg(uuid).arg(suffix);
 
     // マップへの登録

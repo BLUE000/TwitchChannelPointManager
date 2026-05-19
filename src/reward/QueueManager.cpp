@@ -45,7 +45,7 @@ void QueueManager::enqueueRedemption(const QString& rewardId, const QString& use
     }
 
     QueueItem item;
-    item.queueId = QUuid::createUuid().toString(QUuid::IdHeaderType::WithoutBraces);
+    item.queueId = QUuid::createUuid().toString().replace("{", "").replace("}", "");
     item.rewardId = rewardId;
     item.username = username;
     item.timestamp = timestamp;

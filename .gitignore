@@ -19,5 +19,6 @@ CMakePresets.json
 # Local databases and runtime configuration
 *.db
 config.json
+credentials.cmake
 twitch_overlay.log
 *.log

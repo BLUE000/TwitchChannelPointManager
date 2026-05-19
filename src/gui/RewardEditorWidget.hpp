@@ -7,6 +7,7 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QCheckBox>
+#include <QJsonArray>
 #include "../reward/Reward.hpp"
 
 class Application;
@@ -25,7 +26,11 @@ private:
     QComboBox* m_modeCombo;
     QCheckBox* m_enabledCheck;
 
-    // 単一エフェクトの編集用フィールド (簡易統合UI)
+    // 複数演出用コントロール
+    QComboBox* m_effectSelectorCombo;
+    QPushButton* m_addEffectBtn;
+    QPushButton* m_deleteEffectBtn;
+
     QComboBox* m_effectTypeCombo;
     QLineEdit* m_imagePathEdit;
     QLineEdit* m_audioPathEdit;
@@ -35,6 +40,11 @@ private:
     QPushButton* m_saveButton;
     QPushButton* m_deleteButton;
     QPushButton* m_newButton;
+    QPushButton* m_syncButton;
+
+    // 編集中の演出リストと現在選択中のインデックスのバッファ
+    QList<Effect> m_editingEffects;
+    int m_currentEffectIndex = -1;
     
 public:
     explicit RewardEditorWidget(Application* app, QWidget* parent = nullptr);
@@ -47,6 +57,13 @@ private slots:
     void onSaveClicked();
     void onDeleteClicked();
     void onNewClicked();
+    void onSyncClicked();
+    void onCustomRewardsFetched(const QJsonArray& rewards);
+    void onCustomRewardsFetchFailed(const QString& errorMessage);
+    
+    void onEffectSelectorChanged(int index);
+    void onAddEffectClicked();
+    void onDeleteEffectClicked();
     
     // パス参照ダイアログを開く
     void selectImagePath();
@@ -54,4 +71,7 @@ private slots:
 
 private:
     void setupUi();
+    void saveCurrentEffectToBuffer();
+    void loadEffectFromBuffer(int index);
+    void updateEffectSelectorCombo();
 };

@@ -46,6 +46,23 @@ void MainWindow::setupUi()
         QComboBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
         QPushButton { border: 1px solid #29292E; border-radius: 4px; padding: 5px; color: #FFFFFF; background-color: #29292E; }
         QPushButton:hover { background-color: #35353B; }
+
+        /* QCheckBoxスタイル（ステータス文字の視認性確保） */
+        QCheckBox { color: #E1E1E6; font-size: 13px; spacing: 5px; }
+        QCheckBox::indicator { border: 1px solid #29292E; background-color: #121214; width: 14px; height: 14px; border-radius: 3px; }
+        QCheckBox::indicator:checked { background-color: #2196F3; border-color: #2196F3; }
+
+        /* QListWidgetのダークモードスタイル（文字とのコントラスト確保） */
+        QListWidget { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 5px; }
+        QListWidget::item { padding: 6px; border-bottom: 1px solid #1D1D22; border-radius: 3px; }
+        QListWidget::item:hover { background-color: #1D1D22; }
+        QListWidget::item:selected { background-color: #29292E; color: #FFFFFF; }
+        
+        /* QMessageBox用ダークモードスタイル */
+        QMessageBox { background-color: #1D1D22; }
+        QMessageBox QLabel { color: #E1E1E6; font-size: 13px; }
+        QMessageBox QPushButton { background-color: #29292E; color: #FFFFFF; border: 1px solid #35353B; border-radius: 4px; padding: 5px 15px; min-width: 60px; }
+        QMessageBox QPushButton:hover { background-color: #35353B; }
     )");
 }
 

@@ -1,6 +1,7 @@
 #include "DashboardWidget.hpp"
 #include "../core/Application.hpp"
 #include "../core/Logger.hpp"
+#include "../core/Config.hpp"
 #include "../database/Database.hpp"
 #include "../overlay/OverlayServer.hpp"
 #include "../twitch/TwitchEventSub.hpp"
@@ -110,7 +111,7 @@ void DashboardWidget::onToggleConnection()
 
         if (accessToken.isEmpty() || clientId.isEmpty() || broadcasterId.isEmpty()) {
             LOG_WARN("Cannot connect to Twitch EventSub: Missing OAuth settings.");
-            onNewLogMessage(2, "[警告] 接続に必要な認証情報がありません。設定タブから認証を行ってください。");
+            onNewLogMessage(LogLevel::Warning, "[警告] 接続に必要な認証情報がありません。設定タブから認証を行ってください。");
             return;
         }
 
@@ -125,11 +126,11 @@ void DashboardWidget::onToggleConnection()
 void DashboardWidget::onPanicClicked()
 {
     m_app->queueManager()->stopAllEffects();
-    onNewLogMessage(2, "[🚨システム] パニック停止が呼び出されました。現在のキューおよびOBS表示を一括消去しました。");
+    onNewLogMessage(LogLevel::Warning, "[🚨システム] パニック停止が呼び出されました。現在のキューおよびOBS表示を一括消去しました。");
     refreshStats();
 }
 
-void DashboardWidget::onNewLogMessage(int level, const QString& message)
+void DashboardWidget::onNewLogMessage(LogLevel level, const QString& message)
 {
     m_logListWidget->addItem(message);
     m_logListWidget->scrollToBottom();

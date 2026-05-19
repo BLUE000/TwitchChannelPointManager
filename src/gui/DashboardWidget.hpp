@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QListWidget>
+#include "../core/Logger.hpp"
 
 class Application;
 
@@ -30,7 +31,7 @@ public:
 private slots:
     void onToggleConnection();
     void onPanicClicked();
-    void onNewLogMessage(int level, const QString& message);
+    void onNewLogMessage(LogLevel level, const QString& message);
     void updateClientCount(int count);
 
 private:

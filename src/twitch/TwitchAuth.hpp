@@ -6,6 +6,7 @@
 #include <QString>
 #include <QUrlQuery>
 #include <QNetworkAccessManager>
+#include <QJsonArray>
 
 class TwitchAuth : public QObject {
     Q_OBJECT
@@ -26,6 +27,10 @@ public:
     ~TwitchAuth();
 
     void setNetworkAccessManager(QNetworkAccessManager* manager) { m_networkManager = manager; }
+    void setCredentials(const QString& clientId, const QString& clientSecret) {
+        m_clientId = clientId;
+        m_clientSecret = clientSecret;
+    }
 
     // 認可フローを開始（外部デフォルトブラウザでTwitchの認証ページを開く）
     void startAuthFlow();
@@ -35,15 +40,20 @@ public:
     QString accessToken() const { return m_accessToken; }
     QString refreshToken() const { return m_refreshToken; }
 
+    // チャンネルポイント一覧の動的取得
+    void fetchCustomRewards(const QString& accessToken, const QString& clientId, const QString& broadcasterId);
+
 signals:
-    void authSuccess(const QString& accessToken, const QString& refreshToken);
+    void authSuccess(const QString& accessToken, const QString& refreshToken, const QString& broadcasterId);
     void authFailed(const QString& errorMessage);
+    void customRewardsFetched(const QJsonArray& rewards);
+    void customRewardsFetchFailed(const QString& errorMessage);
 
 private slots:
     void handleIncomingConnection();
     void readClientData();
+    void exchangeCodeForToken(const QString& authCode);
 
 private:
     void sendHtmlResponse(QTcpSocket* socket, bool success);
-    void exchangeCodeForToken(const QString& authCode);
 };

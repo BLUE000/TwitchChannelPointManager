@@ -6,7 +6,7 @@
 #include <QJsonObject>
 #include <QDateTime>
 
-class QNetworkAccessManager;
+#include <QNetworkAccessManager>
 
 class TwitchEventSub : public QObject {
     Q_OBJECT

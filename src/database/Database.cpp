@@ -11,7 +11,7 @@
 Database::Database(QObject* parent)
     : QObject(parent)
 {
-    m_connectionName = QString("TwitchOverlayDb_%1").arg(QUuid::createUuid().toString(QUuid::IdHeaderType::WithoutBraces));
+    m_connectionName = QString("TwitchOverlayDb_%1").arg(QUuid::createUuid().toString().replace("{", "").replace("}", ""));
 }
 
 Database::~Database()

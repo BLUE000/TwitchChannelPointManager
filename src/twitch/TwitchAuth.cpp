@@ -7,6 +7,7 @@
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 
 TwitchAuth::TwitchAuth(const QString& clientId, const QString& clientSecret, int port, QObject* parent)
     : QObject(parent)
@@ -172,13 +173,12 @@ void TwitchAuth::exchangeCodeForToken(const QString& authCode)
 
     QNetworkReply* reply = manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());
 
-    connect(reply, &QNetworkReply::finished, [this, reply, manager]() {
-        reply->deleteLater();
-        if (manager != m_networkManager) {
-            manager->deleteLater();
-        }
-
+        connect(reply, &QNetworkReply::finished, [this, reply, manager]() {
         if (reply->error() != QNetworkReply::NoError) {
+            reply->deleteLater();
+            if (manager != m_networkManager) {
+                manager->deleteLater();
+            }
             LOG_ERROR("HTTP error exchanging authorization code for token: " + reply->errorString());
             emit authFailed("トークンの交換に失敗しました: " + reply->errorString());
             return;
@@ -189,6 +189,10 @@ void TwitchAuth::exchangeCodeForToken(const QString& authCode)
         QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
 
         if (doc.isNull()) {
+            reply->deleteLater();
+            if (manager != m_networkManager) {
+                manager->deleteLater();
+            }
             LOG_ERROR("JSON parsing failed for token exchange response: " + parseError.errorString());
             emit authFailed("レスポンスのパースに失敗しました。");
             return;
@@ -199,12 +203,99 @@ void TwitchAuth::exchangeCodeForToken(const QString& authCode)
         m_refreshToken = obj.value("refresh_token").toString();
 
         if (m_accessToken.isEmpty()) {
+            reply->deleteLater();
+            if (manager != m_networkManager) {
+                manager->deleteLater();
+            }
             LOG_ERROR("Access token is empty in response.");
             emit authFailed("アクセストークンが空でした。");
             return;
         }
 
-        LOG_INFO("OAuth tokens successfully exchanged and acquired.");
-        emit authSuccess(m_accessToken, m_refreshToken);
+        LOG_INFO("OAuth tokens successfully exchanged. Fetching Twitch user profile...");
+
+        // TwitchのHelix API（/helix/users）を呼び出してユーザーIDを自動取得
+        QNetworkRequest userRequest(QUrl("https://api.twitch.tv/helix/users"));
+        userRequest.setRawHeader("Authorization", "Bearer " + m_accessToken.toUtf8());
+        userRequest.setRawHeader("Client-Id", m_clientId.toUtf8());
+
+        // 同じmanagerを使って非同期GETを送信
+        QNetworkReply* userReply = manager->get(userRequest);
+        connect(userReply, &QNetworkReply::finished, [this, userReply, reply, manager]() {
+            userReply->deleteLater();
+            reply->deleteLater();
+            if (manager != m_networkManager) {
+                manager->deleteLater();
+            }
+
+            if (userReply->error() != QNetworkReply::NoError) {
+                LOG_ERROR("HTTP error fetching user info: " + userReply->errorString());
+                emit authFailed("ユーザー情報の自動取得に失敗しました: " + userReply->errorString());
+                return;
+            }
+
+            QByteArray userData = userReply->readAll();
+            QJsonParseError userParseError;
+            QJsonDocument userDoc = QJsonDocument::fromJson(userData, &userParseError);
+            if (userDoc.isNull()) {
+                LOG_ERROR("JSON parsing failed for user info response: " + userParseError.errorString());
+                emit authFailed("ユーザー情報のパースに失敗しました。");
+                return;
+            }
+
+            QJsonObject userObj = userDoc.object();
+            QJsonArray dataArray = userObj.value("data").toArray();
+            if (dataArray.isEmpty()) {
+                LOG_ERROR("User data array is empty in response.");
+                emit authFailed("ユーザーデータが見つかりませんでした。");
+                return;
+            }
+
+            QJsonObject profile = dataArray.at(0).toObject();
+            QString broadcasterId = profile.value("id").toString();
+            QString displayName = profile.value("display_name").toString();
+
+            LOG_INFO("Successfully authenticated as: " + displayName + " (ID: " + broadcasterId + ")");
+            emit authSuccess(m_accessToken, m_refreshToken, broadcasterId);
+        });
+    });
+}
+
+void TwitchAuth::fetchCustomRewards(const QString& accessToken, const QString& clientId, const QString& broadcasterId)
+{
+    LOG_INFO("Fetching custom channel point rewards from Twitch Helix API...");
+
+    QNetworkAccessManager* manager = m_networkManager ? m_networkManager : new QNetworkAccessManager(this);
+    QUrl url(QString("https://api.twitch.tv/helix/channel_points/custom_rewards?broadcaster_id=%1&only_manageable_by_lt=false").arg(broadcasterId));
+    QNetworkRequest request(url);
+    request.setRawHeader("Authorization", "Bearer " + accessToken.toUtf8());
+    request.setRawHeader("Client-Id", clientId.toUtf8());
+
+    QNetworkReply* reply = manager->get(request);
+    connect(reply, &QNetworkReply::finished, [this, reply, manager]() {
+        reply->deleteLater();
+        if (manager != m_networkManager) {
+            manager->deleteLater();
+        }
+
+        if (reply->error() != QNetworkReply::NoError) {
+            LOG_ERROR("HTTP error fetching custom rewards: " + reply->errorString());
+            emit customRewardsFetchFailed("報酬の取得に失敗しました: " + reply->errorString());
+            return;
+        }
+
+        QByteArray data = reply->readAll();
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+        if (doc.isNull()) {
+            LOG_ERROR("JSON parsing failed for custom rewards response: " + parseError.errorString());
+            emit customRewardsFetchFailed("報酬データのパースに失敗しました。");
+            return;
+        }
+
+        QJsonObject obj = doc.object();
+        QJsonArray rewards = obj.value("data").toArray();
+        LOG_INFO(QString("Successfully fetched %1 custom rewards from Twitch.").arg(rewards.size()));
+        emit customRewardsFetched(rewards);
     });
 }

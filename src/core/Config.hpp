@@ -21,6 +21,7 @@ public:
     
     QVariant get(const QString& key, const QVariant& defaultValue = QVariant()) const;
     void set(const QString& key, const QVariant& value);
+    void remove(const QString& key) { m_settings.remove(key); }
 
     // TransCipher-Dist を使用した暗号化保存/復号読み込み
     bool saveSecureString(const QString& key, const QString& plainText, const QString& secretKey);
