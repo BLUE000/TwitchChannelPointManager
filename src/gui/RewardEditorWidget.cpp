@@ -3,6 +3,7 @@
 #include "../core/Config.hpp"
 #include "../twitch/TwitchAuth.hpp"
 #include "../reward/RewardManager.hpp"
+#include "../reward/QueueManager.hpp"
 #include <QLabel>
 #include <QDialog>
 #include <QJsonObject>
@@ -148,6 +149,12 @@ void RewardEditorWidget::setupUi()
     rightLayout->addWidget(effectGroup);
 
     // 保存＆削除アクション
+    m_testButton = new QPushButton("▶️ 演出をテスト再生 (OBS)", this);
+    m_testButton->setStyleSheet("background-color: #9C27B0; color: white; font-weight: bold; padding: 8px; font-size: 13px; border-radius: 4px; margin-bottom: 5px;");
+    m_testButton->setEnabled(false); // 報酬が選択されるまで無効
+    connect(m_testButton, &QPushButton::clicked, this, &RewardEditorWidget::onTestClicked);
+    rightLayout->addWidget(m_testButton);
+
     auto* actLayout = new QHBoxLayout();
     m_saveButton = new QPushButton("設定を保存", this);
     m_saveButton->setStyleSheet("background-color: #2196F3; color: white; font-weight: bold; padding: 6px;");
@@ -251,6 +258,8 @@ void RewardEditorWidget::onRewardSelected(QListWidgetItem* item)
     m_currentEffectIndex = 0;
     updateEffectSelectorCombo();
     loadEffectFromBuffer(0);
+
+    m_testButton->setEnabled(true);
 }
 
 void RewardEditorWidget::onSaveClicked()
@@ -282,6 +291,7 @@ void RewardEditorWidget::onSaveClicked()
 
     if (m_app->rewardManager()->saveReward(r)) {
         QMessageBox::information(this, "成功", "報酬設定をデータベースに保存しました。");
+        m_testButton->setEnabled(true);
         reloadRewardsList();
     } else {
         QMessageBox::critical(this, "失敗", "設定の保存に失敗しました。");
@@ -318,6 +328,8 @@ void RewardEditorWidget::onNewClicked()
     m_audioPathEdit->clear();
     m_durationSpin->setValue(5);
     m_textEdit->clear();
+
+    m_testButton->setEnabled(false);
 }
 
 void RewardEditorWidget::selectImagePath()
@@ -522,4 +534,16 @@ void RewardEditorWidget::updateEffectSelectorCombo()
     m_effectSelectorCombo->blockSignals(false);
     
     m_deleteEffectBtn->setEnabled(m_editingEffects.size() > 1);
+}
+
+void RewardEditorWidget::onTestClicked()
+{
+    QString rewardId = m_idEdit->text().trimmed();
+    if (rewardId.isEmpty()) {
+        QMessageBox::warning(this, "テストエラー", "テスト再生する報酬が選択されていません。");
+        return;
+    }
+
+    // キューマネージャーにテストの引き換えリクエストを登録
+    m_app->queueManager()->enqueueRedemption(rewardId, "テスト配信者 (Test Streamer)", QDateTime::currentDateTime());
 }

@@ -41,6 +41,7 @@ private:
     QPushButton* m_deleteButton;
     QPushButton* m_newButton;
     QPushButton* m_syncButton;
+    QPushButton* m_testButton;
 
     // 編集中の演出リストと現在選択中のインデックスのバッファ
     QList<Effect> m_editingEffects;
@@ -49,15 +50,16 @@ private:
 public:
     explicit RewardEditorWidget(Application* app, QWidget* parent = nullptr);
     ~RewardEditorWidget() = default;
-
+ 
     void reloadRewardsList();
-
+ 
 private slots:
     void onRewardSelected(QListWidgetItem* item);
     void onSaveClicked();
     void onDeleteClicked();
     void onNewClicked();
     void onSyncClicked();
+    void onTestClicked();
     void onCustomRewardsFetched(const QJsonArray& rewards);
     void onCustomRewardsFetchFailed(const QString& errorMessage);
     
