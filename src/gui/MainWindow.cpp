@@ -20,9 +20,9 @@ MainWindow::MainWindow(Application* app, QWidget* parent)
     , m_app(app)
 {
     if (BUILD_IS_CUSTOMIZED) {
-        setWindowTitle(QString("Twitch Channel Point Manager - v%1 (Customized Build)").arg(APP_VERSION_STRING));
-        statusBar()->showMessage("⚠️ この実行ファイルはソースコードが改変された非公式のカスタムビルドです。");
-        statusBar()->setStyleSheet("color: #FF5252; font-weight: bold; background-color: #121214;");
+        setWindowTitle(QString("Twitch Channel Point Manager - v%1 (Custom Build)").arg(APP_VERSION_STRING));
+        statusBar()->showMessage("© BLUE000 (Original Creator)");
+        statusBar()->setStyleSheet("color: #888888; background-color: #121214;");
     } else {
         setWindowTitle(QString("Twitch Channel Point Manager - v%1").arg(APP_VERSION_STRING));
     }
