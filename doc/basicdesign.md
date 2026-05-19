@@ -185,12 +185,17 @@ src/
 | username | TEXT | ユーザー名 |
 | expires_at | DATETIME | 有効期限 |
 
-5. 通信プロトコル
-5.1 WebSocket通信 (アプリ ⇔ OBSブラウザソース)
-接続情報
-WebSocket: ws://localhost:28080/overlay
-Asset Server (HTTP): http://localhost:28081/assets/
-演出表示メッセージ
+## 5. 通信プロトコル
+
+### 5.1 WebSocket通信 (アプリ ⇔ OBSブラウザソース)
+
+* **接続情報**
+  * WebSocket: `ws://localhost:28080/overlay`
+  * Asset Server (HTTP): `http://localhost:28081/assets/`
+
+#### 演出表示メッセージ
+
+```json
 {
   "type": "show_effect",
   "data": {
@@ -218,24 +223,34 @@ Asset Server (HTTP): http://localhost:28081/assets/
     }
   }
 }
+```
 
-演出完了レスポンス
+#### 演出完了レスポンス
+
+```json
 {
   "type": "effect_completed",
   "data": {
     "queueId": "queue_12345"
   }
 }
+```
 
-パニックボタン
+#### パニックボタン
+
+```json
 {
   "type": "stop_all"
 }
+```
 
-キュー全クリア
+#### キュー全クリア
+
+```json
 {
   "type": "clear_queue"
 }
+```
 
 ### 5.2 Asset Server (HTTP)
 
