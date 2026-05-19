@@ -1,0 +1,202 @@
+#include "TwitchAuth.hpp"
+#include "../core/Logger.hpp"
+#include <QDesktopServices>
+#include <QUrl>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+TwitchAuth::TwitchAuth(const QString& clientId, const QString& clientSecret, int port, QObject* parent)
+    : QObject(parent)
+    , m_loopbackServer(nullptr)
+    , m_callbackPort(port)
+    , m_clientId(clientId)
+    , m_clientSecret(clientSecret)
+{
+}
+
+TwitchAuth::~TwitchAuth()
+{
+    stopLoopbackServer();
+}
+
+void TwitchAuth::startAuthFlow()
+{
+    stopLoopbackServer();
+
+    m_loopbackServer = new QTcpServer(this);
+    connect(m_loopbackServer, &QTcpServer::newConnection, this, &TwitchAuth::handleIncomingConnection);
+
+    if (!m_loopbackServer->listen(QHostAddress::LocalHost, m_callbackPort)) {
+        LOG_ERROR(QString("Failed to start loopback server on port %1").arg(m_callbackPort));
+        emit authFailed("ローカルサーバーの起動に失敗しました。");
+        return;
+    }
+
+    LOG_INFO(QString("OAuth loopback server listening on port %1").arg(m_callbackPort));
+
+    // Twitch認可URLの生成
+    QString authUrl = QString(
+        "https://id.twitch.tv/oauth2/authorize"
+        "?client_id=%1"
+        "&redirect_uri=http://localhost:%2/callback"
+        "&response_type=code"
+        "&scope=channel:read:redemptions"
+    ).arg(m_clientId).arg(m_callbackPort);
+
+    LOG_INFO("Opening Twitch authorization page in default browser.");
+    QDesktopServices::openUrl(QUrl(authUrl));
+}
+
+void TwitchAuth::stopLoopbackServer()
+{
+    if (m_loopbackServer) {
+        if (m_loopbackServer->isListening()) {
+            m_loopbackServer->close();
+        }
+        m_loopbackServer->deleteLater();
+        m_loopbackServer = nullptr;
+        LOG_INFO("OAuth loopback server stopped.");
+    }
+}
+
+void TwitchAuth::handleIncomingConnection()
+{
+    QTcpSocket* socket = m_loopbackServer->nextPendingConnection();
+    if (socket) {
+        connect(socket, &QTcpSocket::readyRead, this, &TwitchAuth::readClientData);
+        connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
+    }
+}
+
+void TwitchAuth::readClientData()
+{
+    QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) return;
+
+    QByteArray requestData = socket->readAll();
+    QString requestStr = QString::fromUtf8(requestData);
+
+    // GET リクエストから認可コードを抽出
+    if (requestStr.startsWith("GET")) {
+        int firstSpace = requestStr.indexOf(' ');
+        int secondSpace = requestStr.indexOf(' ', firstSpace + 1);
+        QString path = requestStr.mid(firstSpace + 1, secondSpace - firstSpace - 1);
+
+        QUrl url("http://localhost" + path);
+        QUrlQuery query(url.query());
+
+        if (query.hasQueryItem("code")) {
+            QString code = query.queryItemValue("code");
+            LOG_INFO("Authorization code successfully received from browser redirect.");
+            sendHtmlResponse(socket, true);
+            socket->disconnectFromHost();
+            stopLoopbackServer(); // 認証コードが取得できたのでサーバーを停止
+
+            // トークン取得処理へ
+            exchangeCodeForToken(code);
+        } else {
+            LOG_WARN("Redirect received, but authorization code was missing.");
+            sendHtmlResponse(socket, false);
+            socket->disconnectFromHost();
+            emit authFailed("認証コードの取得に失敗しました。");
+        }
+    }
+}
+
+void TwitchAuth::sendHtmlResponse(QTcpSocket* socket, bool success)
+{
+    QTextStream os(socket);
+    os.setAutoDetectUnicode(true);
+
+    QString title = success ? "認証成功 - Twitch Manager" : "認証失敗";
+    QString color = success ? "#4CAF50" : "#F44336";
+    QString statusText = success ? "認証に成功しました！" : "認証に失敗しました。";
+    QString subText = success 
+        ? "アプリケーションに戻り、設定を確認してください。このウィンドウは閉じて構いません。" 
+        : "もう一度最初から認証をやり直してください。";
+
+    QString html = QString(
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/html; charset=utf-8\r\n"
+        "Connection: close\r\n\r\n"
+        "<!DOCTYPE html>"
+        "<html>"
+        "<head>"
+        "<meta charset='utf-8'>"
+        "<title>%1</title>"
+        "<style>"
+        "  body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #121214; color: #E1E1E6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }"
+        "  .card { background-color: #1D1D22; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); text-align: center; max-width: 450px; border-top: 6px solid %2; }"
+        "  h1 { color: #FFFFFF; font-size: 24px; margin-bottom: 16px; }"
+        "  p { font-size: 15px; color: #A9A9B2; line-height: 1.6; margin-bottom: 24px; }"
+        "  .badge { display: inline-block; padding: 8px 16px; border-radius: 20px; font-weight: bold; background-color: %2; color: #FFFFFF; margin-bottom: 20px; }"
+        "</style>"
+        "</head>"
+        "<body>"
+        "  <div class='card'>"
+        "    <div class='badge'>Twitch Overlay Server</div>"
+        "    <h1>%3</h1>"
+        "    <p>%4</p>"
+        "  </div>"
+        "</body>"
+        "</html>"
+    ).arg(title).arg(color).arg(statusText).arg(subText);
+
+    os << html;
+}
+
+void TwitchAuth::exchangeCodeForToken(const QString& authCode)
+{
+    LOG_INFO("Exchanging authorization code for OAuth tokens.");
+
+    QNetworkAccessManager* manager = new QNetworkAccessManager(this);
+    QUrl tokenUrl("https://id.twitch.tv/oauth2/token");
+    QNetworkRequest request(tokenUrl);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery postData;
+    postData.addQueryItem("client_id", m_clientId);
+    postData.addQueryItem("client_secret", m_clientSecret);
+    postData.addQueryItem("code", authCode);
+    postData.addQueryItem("grant_type", "authorization_code");
+    postData.addQueryItem("redirect_uri", QString("http://localhost:%1/callback").arg(m_callbackPort));
+
+    QNetworkReply* reply = manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());
+
+    connect(reply, &QNetworkReply::finished, [this, reply, manager]() {
+        reply->deleteLater();
+        manager->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            LOG_ERROR("HTTP error exchanging authorization code for token: " + reply->errorString());
+            emit authFailed("トークンの交換に失敗しました: " + reply->errorString());
+            return;
+        }
+
+        QByteArray responseData = reply->readAll();
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (doc.isNull()) {
+            LOG_ERROR("JSON parsing failed for token exchange response: " + parseError.errorString());
+            emit authFailed("レスポンスのパースに失敗しました。");
+            return;
+        }
+
+        QJsonObject obj = doc.object();
+        m_accessToken = obj.value("access_token").toString();
+        m_refreshToken = obj.value("refresh_token").toString();
+
+        if (m_accessToken.isEmpty()) {
+            LOG_ERROR("Access token is empty in response.");
+            emit authFailed("アクセストークンが空でした。");
+            return;
+        }
+
+        LOG_INFO("OAuth tokens successfully exchanged and acquired.");
+        emit authSuccess(m_accessToken, m_refreshToken);
+    });
+}
