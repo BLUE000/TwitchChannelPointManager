@@ -231,7 +231,7 @@ void OverlayServer::setupHttpRoutes()
 
     // テスト兼OBS登録用のデフォルトオーバーレイHTMLページ
     m_httpServer->route("/overlay", [this]() {
-        QString html = QString(R"(
+        QString html = QString(R"HTML(
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -240,7 +240,7 @@ void OverlayServer::setupHttpRoutes()
     <style>
         body { margin: 0; background-color: transparent; overflow: hidden; }
         #overlay-container { width: 100vw; height: 100vh; position: relative; }
-        .overlay-item { position: absolute; transform: translate(-50%, -50%); text-align: center; }
+        .overlay-item { position: absolute; text-align: center; }
         .overlay-text { font-weight: bold; margin-top: 10px; text-shadow: 2px 2px 4px #000; }
     </style>
 </head>
@@ -267,15 +267,38 @@ void OverlayServer::setupHttpRoutes()
                 const wrapper = document.createElement("div");
                 wrapper.className = "overlay-item";
                 
-                // 位置の決定（空文字・center以外はすべてcenter扱い）
-                const preset = (data.effect.position && data.effect.position.preset) ? data.effect.position.preset : "center";
-                if (preset === "custom") {
-                    wrapper.style.left = data.effect.position.offsetX + "px";
-                    wrapper.style.top = data.effect.position.offsetY + "px";
-                } else {
-                    // center (デフォルト) またはその他のプリセット
+                // 位置の決定（プリセットまたはカスタム座標）
+                const preset = (data.effect.position && data.effect.position.preset)
+                    ? data.effect.position.preset : "center";
+
+                // 全リセット
+                wrapper.style.left = "";
+                wrapper.style.top = "";
+                wrapper.style.right = "";
+                wrapper.style.bottom = "";
+                wrapper.style.transform = "";
+
+                if (preset === "center") {
                     wrapper.style.left = "50%";
-                    wrapper.style.top = "50%";
+                    wrapper.style.top  = "50%";
+                    wrapper.style.transform = "translate(-50%, -50%)";
+                } else if (preset === "top_left") {
+                    wrapper.style.left = "5%";
+                    wrapper.style.top  = "5%";
+                } else if (preset === "top_right") {
+                    wrapper.style.right = "5%";
+                    wrapper.style.top   = "5%";
+                } else if (preset === "bottom_left") {
+                    wrapper.style.left   = "5%";
+                    wrapper.style.bottom = "5%";
+                } else if (preset === "bottom_right") {
+                    wrapper.style.right  = "5%";
+                    wrapper.style.bottom = "5%";
+                } else {
+                    // custom: offsetX/offsetY はオーバーレイ左上からのピクセル座標
+                    wrapper.style.left = (data.effect.position.offsetX || 0) + "px";
+                    wrapper.style.top  = (data.effect.position.offsetY || 0) + "px";
+                    wrapper.style.transform = "translate(-50%, -50%)";
                 }
 
                 // 演出種類別（画像/動画）
@@ -330,7 +353,7 @@ void OverlayServer::setupHttpRoutes()
     </script>
 </body>
 </html>
-        )").arg(m_wsPort);
+        )HTML").arg(m_wsPort);
 
         QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
         QHttpHeaders headers;

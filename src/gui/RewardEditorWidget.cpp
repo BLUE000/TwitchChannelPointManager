@@ -146,6 +146,43 @@ void RewardEditorWidget::setupUi()
     m_textEdit->setPlaceholderText("例: {user}がたぬきを投げた！");
     effectLayout->addRow("吹き出し表示文字列:", m_textEdit);
 
+    // --- 表示位置設定 ---
+    m_positionPresetCombo = new QComboBox(this);
+    m_positionPresetCombo->addItem("中央 (center)",        "center");
+    m_positionPresetCombo->addItem("左上 (top_left)",      "top_left");
+    m_positionPresetCombo->addItem("右上 (top_right)",     "top_right");
+    m_positionPresetCombo->addItem("左下 (bottom_left)",   "bottom_left");
+    m_positionPresetCombo->addItem("右下 (bottom_right)",  "bottom_right");
+    m_positionPresetCombo->addItem("カスタム (手動座標)",  "custom");
+    effectLayout->addRow("表示位置:", m_positionPresetCombo);
+
+    // カスタム座標の微調整ウィジェット（カスタム選択時のみ表示）
+    m_positionCustomWidget = new QWidget(this);
+    auto* customPosLayout = new QHBoxLayout(m_positionCustomWidget);
+    customPosLayout->setContentsMargins(0, 0, 0, 0);
+    customPosLayout->addWidget(new QLabel("X:", m_positionCustomWidget));
+    m_positionXSpin = new QSpinBox(m_positionCustomWidget);
+    m_positionXSpin->setRange(0, 3840);
+    m_positionXSpin->setValue(960);
+    m_positionXSpin->setSuffix(" px");
+    customPosLayout->addWidget(m_positionXSpin);
+    customPosLayout->addSpacing(12);
+    customPosLayout->addWidget(new QLabel("Y:", m_positionCustomWidget));
+    m_positionYSpin = new QSpinBox(m_positionCustomWidget);
+    m_positionYSpin->setRange(0, 2160);
+    m_positionYSpin->setValue(540);
+    m_positionYSpin->setSuffix(" px");
+    customPosLayout->addWidget(m_positionYSpin);
+    customPosLayout->addStretch();
+    m_positionCustomWidget->setVisible(false);
+    effectLayout->addRow("  ↳ 座標 (px):", m_positionCustomWidget);
+
+    connect(m_positionPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this]() {
+        m_positionCustomWidget->setVisible(
+            m_positionPresetCombo->currentData().toString() == "custom");
+    });
+
     rightLayout->addWidget(effectGroup);
 
     // 保存＆削除アクション
@@ -494,6 +531,10 @@ void RewardEditorWidget::saveCurrentEffectToBuffer()
         eff.audioPath = m_audioPathEdit->text().trimmed();
         eff.duration = m_durationSpin->value();
         eff.text = m_textEdit->text().trimmed();
+        // 表示位置
+        eff.position.preset  = m_positionPresetCombo->currentData().toString();
+        eff.position.offsetX = m_positionXSpin->value();
+        eff.position.offsetY = m_positionYSpin->value();
     }
 }
 
@@ -510,6 +551,13 @@ void RewardEditorWidget::loadEffectFromBuffer(int index)
         m_audioPathEdit->setText(eff.audioPath);
         m_durationSpin->setValue(eff.duration);
         m_textEdit->setText(eff.text);
+
+        // 表示位置の復元
+        int posIndex = m_positionPresetCombo->findData(eff.position.preset);
+        m_positionPresetCombo->setCurrentIndex(posIndex >= 0 ? posIndex : 0);
+        m_positionXSpin->setValue(eff.position.offsetX > 0 ? eff.position.offsetX : 960);
+        m_positionYSpin->setValue(eff.position.offsetY > 0 ? eff.position.offsetY : 540);
+        m_positionCustomWidget->setVisible(eff.position.preset == "custom");
         
         // 最後の1個の場合は削除ボタンを無効にする（ダブル安全策）
         m_deleteEffectBtn->setEnabled(m_editingEffects.size() > 1);

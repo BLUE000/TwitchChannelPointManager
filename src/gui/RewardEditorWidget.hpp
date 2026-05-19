@@ -7,6 +7,8 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QCheckBox>
+#include <QLabel>
+#include <QHBoxLayout>
 #include <QJsonArray>
 #include "../reward/Reward.hpp"
 
@@ -36,6 +38,12 @@ private:
     QLineEdit* m_audioPathEdit;
     QSpinBox* m_durationSpin;
     QLineEdit* m_textEdit;
+
+    // 表示位置コントロール
+    QComboBox* m_positionPresetCombo;
+    QWidget*   m_positionCustomWidget; // カスタム時のみ表示
+    QSpinBox*  m_positionXSpin;
+    QSpinBox*  m_positionYSpin;
     
     QPushButton* m_saveButton;
     QPushButton* m_deleteButton;
