@@ -7,7 +7,7 @@
 
 // 演出用の位置設定
 struct EffectPosition {
-    QString preset; // "center", "top_left", "top_right", "bottom_left", "bottom_right", "custom"
+    QString preset = "center"; // "center", "top_left", "top_right", "bottom_left", "bottom_right", "custom"
     int offsetX = 0;
     int offsetY = 0;
 
