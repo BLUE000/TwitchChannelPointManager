@@ -150,6 +150,20 @@ void StatisticsWidget::refreshRanking()
         m_userStatsTable->setItem(row, 2, countItem);
         row++;
     }
+
+    // 同一ユーザのセルを縦方向に結合して見やすくする
+    int i = 0;
+    while (i < userStats.size()) {
+        int j = i + 1;
+        while (j < userStats.size() && userStats[j].username == userStats[i].username) {
+            j++;
+        }
+        int span = j - i;
+        if (span > 1) {
+            m_userStatsTable->setSpan(i, 0, span, 1);
+        }
+        i = j;
+    }
 }
 
 void StatisticsWidget::onExportCsvClicked()

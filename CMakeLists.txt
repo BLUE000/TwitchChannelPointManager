@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
-set(APP_VERSION_STRING "1.0β")
-project(TwitchChannelPointManager VERSION 1.0.0 LANGUAGES CXX)
+set(APP_VERSION_STRING "1.5beta")
+project(TwitchChannelPointManager VERSION 1.5.0 LANGUAGES CXX)
 
 # ==========================================
 # ローカル認証情報のインクルード（Git管理外）
@@ -179,6 +179,36 @@ target_link_libraries(TwitchChannelPointManager PRIVATE
     Qt6::HttpServer
     Qt6::Sql
 )
+
+# ==========================================
+# データベース ビューアー (スタンドアロン版) ターゲットの定義
+# ==========================================
+set(DB_VIEWER_SOURCES
+    src/db_viewer_main.cpp
+    src/gui/standalone/DbViewerWindow.hpp
+    src/gui/standalone/DbViewerWindow.cpp
+    src/core/Logger.hpp
+    src/core/Logger.cpp
+    src/database/Database.hpp
+    src/database/Database.cpp
+)
+
+add_executable(TwitchDbViewer ${DB_VIEWER_SOURCES})
+
+target_compile_definitions(TwitchDbViewer PRIVATE
+    APP_VERSION_STRING="${APP_VERSION_STRING}"
+)
+
+target_include_directories(TwitchDbViewer PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(TwitchDbViewer PRIVATE
+    Qt6::Core
+    Qt6::Widgets
+    Qt6::Sql
+)
+
 
 # ==========================================
 # Google Test (GTest) 自動ビルド設定

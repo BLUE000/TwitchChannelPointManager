@@ -54,4 +54,6 @@ private slots:
 private:
     void setupHttpRoutes();
     QString getMimeType(const QString& filepath) const;
+    void broadcastMessage(const QString& message);
 };
+

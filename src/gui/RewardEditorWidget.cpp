@@ -118,15 +118,16 @@ void RewardEditorWidget::setupUi()
     m_effectTypeCombo->addItem("動画（透過WebMなど） (video)", "video");
     m_effectTypeCombo->addItem("音響効果のみ (sound)", "sound");
     effectLayout->addRow("演出の種類:", m_effectTypeCombo);
+    connect(m_effectTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RewardEditorWidget::onEffectTypeChanged);
 
     // アセットファイル選択
     auto* imgLayout = new QHBoxLayout();
     m_imagePathEdit = new QLineEdit(this);
-    auto* imgSelectBtn = new QPushButton("参照...", this);
+    m_imageSelectBtn = new QPushButton("参照...", this);
     imgLayout->addWidget(m_imagePathEdit);
-    imgLayout->addWidget(imgSelectBtn);
+    imgLayout->addWidget(m_imageSelectBtn);
     effectLayout->addRow("画像/動画ファイル:", imgLayout);
-    connect(imgSelectBtn, &QPushButton::clicked, this, &RewardEditorWidget::selectImagePath);
+    connect(m_imageSelectBtn, &QPushButton::clicked, this, &RewardEditorWidget::selectImagePath);
 
     auto* audLayout = new QHBoxLayout();
     m_audioPathEdit = new QLineEdit(this);
@@ -538,7 +539,11 @@ void RewardEditorWidget::saveCurrentEffectToBuffer()
     if (m_currentEffectIndex >= 0 && m_currentEffectIndex < m_editingEffects.size()) {
         Effect& eff = m_editingEffects[m_currentEffectIndex];
         eff.type = m_effectTypeCombo->currentData().toString();
-        eff.filePath = m_imagePathEdit->text().trimmed();
+        if (eff.type == "sound") {
+            eff.filePath = ""; // 音響効果のみの場合は画像/動画パスをクリア
+        } else {
+            eff.filePath = m_imagePathEdit->text().trimmed();
+        }
         eff.audioPath = m_audioPathEdit->text().trimmed();
         eff.duration = m_durationSpin->value();
         eff.scale = m_scaleSpin->value();
@@ -575,6 +580,9 @@ void RewardEditorWidget::loadEffectFromBuffer(int index)
         m_positionXSpin->setValue(eff.position.offsetX > 0 ? eff.position.offsetX : 960);
         m_positionYSpin->setValue(eff.position.offsetY > 0 ? eff.position.offsetY : 540);
         
+        // 演出の種類に応じたUIの有効・無効化状態の更新
+        onEffectTypeChanged(m_effectTypeCombo->currentIndex());
+
         // 最後の1個の場合は削除ボタンを無効にする（ダブル安全策）
         m_deleteEffectBtn->setEnabled(m_editingEffects.size() > 1);
     }
@@ -625,3 +633,40 @@ void RewardEditorWidget::onTestClicked()
 
     m_app->queueManager()->enqueueReward(r, "テスト配信者 (Test Streamer)", QDateTime::currentDateTime());
 }
+
+void RewardEditorWidget::onEffectTypeChanged(int index)
+{
+    Q_UNUSED(index);
+    QString type = m_effectTypeCombo->currentData().toString();
+    bool isSoundOnly = (type == "sound");
+
+    m_imagePathEdit->setEnabled(!isSoundOnly);
+    m_imageSelectBtn->setEnabled(!isSoundOnly);
+    m_scaleSpin->setEnabled(!isSoundOnly);
+    m_positionPresetCombo->setEnabled(!isSoundOnly);
+    m_positionXSpin->setEnabled(!isSoundOnly && m_positionPresetCombo->currentData().toString() == "custom");
+    m_positionYSpin->setEnabled(!isSoundOnly && m_positionPresetCombo->currentData().toString() == "custom");
+
+    if (isSoundOnly) {
+        m_imagePathEdit->clear();
+    }
+}
+
+void RewardEditorWidget::selectRewardAndEffect(const QString& rewardId, int effectIndex)
+{
+    for (int i = 0; i < m_rewardsList->count(); ++i) {
+        QListWidgetItem* item = m_rewardsList->item(i);
+        if (item && item->data(Qt::UserRole).toString() == rewardId) {
+            m_rewardsList->setCurrentItem(item);
+            onRewardSelected(item);
+
+            if (effectIndex >= 0 && effectIndex < m_editingEffects.size()) {
+                if (effectIndex < m_effectSelectorCombo->count()) {
+                    m_effectSelectorCombo->setCurrentIndex(effectIndex);
+                }
+            }
+            break;
+        }
+    }
+}
+

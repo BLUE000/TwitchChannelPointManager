@@ -205,7 +205,7 @@ bool Database::logUsage(const QString& rewardId, const QString& username, const 
     query.prepare("INSERT INTO usage_logs (reward_id, username, timestamp) VALUES (:reward_id, :username, :timestamp)");
     query.bindValue(":reward_id", rewardId);
     query.bindValue(":username", username);
-    query.bindValue(":timestamp", timestamp.toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(":timestamp", timestamp.toLocalTime().toString("yyyy-MM-dd HH:mm:ss"));
 
     if (!query.exec()) {
         LOG_ERROR("Failed to write usage log to DB: " + query.lastError().text());

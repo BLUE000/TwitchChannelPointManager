@@ -5,6 +5,8 @@
 #include <QString>
 #include <QJsonObject>
 #include <QDateTime>
+#include <QSet>
+#include <QQueue>
 
 #include <QNetworkAccessManager>
 
@@ -55,4 +57,7 @@ private:
     void handleWelcomeMessage(const QJsonObject& payload);
     void handleNotificationMessage(const QJsonObject& payload);
     void registerSubscription();
+
+    QSet<QString> m_processedMessageIds;
+    QQueue<QString> m_messageIdQueue;
 };

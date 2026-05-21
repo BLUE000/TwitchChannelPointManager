@@ -31,12 +31,18 @@ TwitchEventSub::~TwitchEventSub()
 
 void TwitchEventSub::connectToServer(const QString& accessToken, const QString& clientId, const QString& broadcasterId)
 {
+    if (m_webSocket && (m_webSocket->state() == QAbstractSocket::ConnectedState || 
+                        m_webSocket->state() == QAbstractSocket::ConnectingState)) {
+        LOG_WARN("Twitch EventSub WebSocket is already connected or connecting. Ignoring connection request.");
+        return;
+    }
+
     m_accessToken = accessToken;
     m_clientId = clientId;
     m_broadcasterId = broadcasterId;
 
     LOG_INFO("Connecting to Twitch EventSub WebSocket server...");
-    m_webSocket->open(QUrl("wss://eventsub.wss.twitch.tv/v1/events"));
+    m_webSocket->open(QUrl("wss://eventsub.wss.twitch.tv/ws"));
 }
 
 void TwitchEventSub::disconnectFromServer()
@@ -46,6 +52,8 @@ void TwitchEventSub::disconnectFromServer()
         m_webSocket->close();
     }
     m_isConnected = false;
+    m_processedMessageIds.clear();
+    m_messageIdQueue.clear();
 }
 
 void TwitchEventSub::onConnected()
@@ -88,6 +96,22 @@ void TwitchEventSub::onTextMessageReceived(const QString& message)
 
     QJsonObject root = doc.object();
     QJsonObject metadata = root.value("metadata").toObject();
+
+    // 重複メッセージの排除 (Deduplication)
+    QString messageId = metadata.value("message_id").toString();
+    if (!messageId.isEmpty()) {
+        if (m_processedMessageIds.contains(messageId)) {
+            LOG_WARN("Twitch EventSub: Ignored duplicate message with ID: " + messageId);
+            return;
+        }
+        m_processedMessageIds.insert(messageId);
+        m_messageIdQueue.enqueue(messageId);
+        if (m_messageIdQueue.size() > 200) {
+            QString oldest = m_messageIdQueue.dequeue();
+            m_processedMessageIds.remove(oldest);
+        }
+    }
+
     QString msgType = metadata.value("message_type").toString();
     QJsonObject payload = root.value("payload").toObject();
 

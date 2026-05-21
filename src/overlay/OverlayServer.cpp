@@ -114,10 +114,7 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
     QJsonDocument doc(rootObj);
     QString message = doc.toJson(QJsonDocument::Compact);
 
-    // 接続中のクライアントへ送信
-    for (auto* client : m_clients) {
-        client->sendTextMessage(message);
-    }
+    broadcastMessage(message);
 }
 
 void OverlayServer::broadcastStopAll()
@@ -129,9 +126,7 @@ void OverlayServer::broadcastStopAll()
     QJsonDocument doc(rootObj);
     QString message = doc.toJson(QJsonDocument::Compact);
 
-    for (auto* client : m_clients) {
-        client->sendTextMessage(message);
-    }
+    broadcastMessage(message);
 }
 
 void OverlayServer::broadcastClearQueue()
@@ -143,9 +138,7 @@ void OverlayServer::broadcastClearQueue()
     QJsonDocument doc(rootObj);
     QString message = doc.toJson(QJsonDocument::Compact);
 
-    for (auto* client : m_clients) {
-        client->sendTextMessage(message);
-    }
+    broadcastMessage(message);
 }
 
 void OverlayServer::onNewConnection()
@@ -249,6 +242,47 @@ void OverlayServer::setupHttpRoutes()
 <body>
     <div id="overlay-container"></div>
     <script>
+        let currentEffect = null;
+
+        function clearCurrentEffect() {
+            if (currentEffect) {
+                if (currentEffect.timeoutId) {
+                    clearTimeout(currentEffect.timeoutId);
+                }
+                if (currentEffect.audio) {
+                    try {
+                        currentEffect.audio.pause();
+                        currentEffect.audio.src = "";
+                        currentEffect.audio.load();
+                    } catch (e) {
+                        console.error("Error clearing audio:", e);
+                    }
+                }
+                if (currentEffect.wrapper) {
+                    try {
+                        currentEffect.wrapper.remove();
+                    } catch (e) {
+                        console.error("Error removing wrapper:", e);
+                    }
+                }
+                currentEffect = null;
+            }
+
+            const container = document.getElementById("overlay-container");
+            if (container) {
+                container.innerHTML = "";
+            }
+
+            document.querySelectorAll("#overlay-container video").forEach(vid => {
+                try {
+                    vid.pause();
+                    vid.src = "";
+                    vid.load();
+                    vid.remove();
+                } catch(e){}
+            });
+        }
+
         const ws = new WebSocket("ws://localhost:%1/overlay");
 
         ws.onopen = () => {
@@ -256,128 +290,145 @@ void OverlayServer::setupHttpRoutes()
         };
 
         ws.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            
-            if (msg.type === "show_effect") {
-                const data = msg.data;
-                const container = document.getElementById("overlay-container");
+            try {
+                const msg = JSON.parse(event.data);
                 
-                // コンテナを初期化
-                container.innerHTML = "";
+                if (msg.type === "show_effect") {
+                    const data = msg.data;
+                    
+                    clearCurrentEffect();
 
-                // ラッパーエレメント
-                const wrapper = document.createElement("div");
-                wrapper.className = "overlay-item";
-                
-                // 位置の決定: offsetX/offsetY = コンテンツ中心点（ピクセル座標）
-                // 0 の場合はセンター(960, 540)を使用
-                const posX = data.effect.position.offsetX || 960;
-                const posY = data.effect.position.offsetY || 540;
-                wrapper.style.left      = posX + "px";
-                wrapper.style.top       = posY + "px";
-                const scaleVal = (data.effect.scale !== undefined ? data.effect.scale : 100) / 100.0;
-                wrapper.style.transform = `translate(-50%, -50%) scale(${scaleVal})`;
+                    const container = document.getElementById("overlay-container");
+                    if (!container) return;
 
-                // コンテンツ読み込み後に実サイズを測定し、
-                // 画面端に見切れないよう位置を補正する関数
-                const clampToViewport = () => {
-                    const rect = wrapper.getBoundingClientRect();
-                    const vw   = window.innerWidth;
-                    const vh   = window.innerHeight;
-                    let newX = posX;
-                    let newY = posY;
-                    // 左・上への見切れを補正（右・下方向にずらす）
-                    if (rect.left   < 0)  newX += (-rect.left);
-                    if (rect.top    < 0)  newY += (-rect.top);
-                    // 右・下への見切れを補正（左・上方向にずらす）
-                    if (rect.right  > vw) newX -= (rect.right  - vw);
-                    if (rect.bottom > vh) newY -= (rect.bottom - vh);
-                    if (newX !== posX || newY !== posY) {
-                        wrapper.style.left = newX + "px";
-                        wrapper.style.top  = newY + "px";
+                    const wrapper = document.createElement("div");
+                    wrapper.className = "overlay-item";
+                    
+                    const posX = data.effect.position.offsetX || 960;
+                    const posY = data.effect.position.offsetY || 540;
+                    wrapper.style.left      = posX + "px";
+                    wrapper.style.top       = posY + "px";
+                    const scaleVal = (data.effect.scale !== undefined ? data.effect.scale : 100) / 100.0;
+                    wrapper.style.transform = `translate(-50%, -50%) scale(${scaleVal})`;
+
+                    const clampToViewport = () => {
+                        try {
+                            const rect = wrapper.getBoundingClientRect();
+                            const vw   = window.innerWidth;
+                            const vh   = window.innerHeight;
+                            let newX = posX;
+                            let newY = posY;
+                            if (rect.left   < 0)  newX += (-rect.left);
+                            if (rect.top    < 0)  newY += (-rect.top);
+                            if (rect.right  > vw) newX -= (rect.right  - vw);
+                            if (rect.bottom > vh) newY -= (rect.bottom - vh);
+                            if (newX !== posX || newY !== posY) {
+                                wrapper.style.left = newX + "px";
+                                wrapper.style.top  = newY + "px";
+                            }
+                        } catch (e) {
+                            console.error("Error in clampToViewport:", e);
+                        }
+                    };
+
+                    const hasValidFilePath = data.effect.filePath && !data.effect.filePath.endsWith('/assets/') && !data.effect.filePath.endsWith('/assets');
+                    if (data.effect.type === "image" && hasValidFilePath) {
+                        const img = document.createElement("img");
+                        img.src = data.effect.filePath;
+                        img.style.maxWidth  = "80vw";
+                        img.style.maxHeight = "80vh";
+                        img.onload  = clampToViewport;
+                        img.onerror = clampToViewport;
+                        wrapper.appendChild(img);
+                    } else if (data.effect.type === "video" && hasValidFilePath) {
+                        const vid = document.createElement("video");
+                        vid.src = data.effect.filePath;
+                        vid.autoplay = true;
+                        vid.style.maxWidth  = "80vw";
+                        vid.style.maxHeight = "80vh";
+                        vid.onloadedmetadata = clampToViewport;
+                        vid.onended = () => completeEffect();
+                        vid.onerror = () => completeEffect();
+                        wrapper.appendChild(vid);
                     }
-                };
 
-                // 演出種類別（画像/動画）
-                if (data.effect.type === "image" && data.effect.filePath) {
-                    const img = document.createElement("img");
-                    img.src = data.effect.filePath;
-                    img.style.maxWidth  = "80vw";
-                    img.style.maxHeight = "80vh";
-                    // 画像ロード完了後に実サイズを測定して見切れを補正
-                    img.onload  = clampToViewport;
-                    img.onerror = clampToViewport;
-                    wrapper.appendChild(img);
-                } else if (data.effect.type === "video" && data.effect.filePath) {
-                    const vid = document.createElement("video");
-                    vid.src = data.effect.filePath;
-                    vid.autoplay = true;
-                    vid.style.maxWidth  = "80vw";
-                    vid.style.maxHeight = "80vh";
-                    // メタデータ取得完了後に実サイズを測定して見切れを補正
-                    vid.onloadedmetadata = clampToViewport;
-                    // ビデオ終了で完了（duration はフォールバック上限）
-                    vid.onended = () => completeEffect();
-                    vid.onerror = () => completeEffect();
-                    wrapper.appendChild(vid);
-                }
-
-                // テスト用のテキスト描画
-                if (data.effect.text) {
-                    const txt = document.createElement("div");
-                    txt.className = "overlay-text";
-                    txt.innerText = data.effect.text;
-                    txt.style.fontFamily = data.effect.textStyle.font || 'Arial';
-                    txt.style.fontSize = (data.effect.textStyle.size || 32) + 'px';
-                    txt.style.color = data.effect.textStyle.color || '#FFFFFF';
-                    txt.style.webkitTextStroke = `${data.effect.textStyle.borderWidth || 2}px ${data.effect.textStyle.borderColor || '#000000'}`;
-                    wrapper.appendChild(txt);
-                }
-
-                container.appendChild(wrapper);
-
-                // 演出完了ハンドラ（二重呼び出し防止付き）
-                let effectDone = false;
-                let currentAudio = null;
-                const completeEffect = () => {
-                    if (effectDone) return;
-                    effectDone = true;
-                    if (currentAudio) {
-                        currentAudio.pause();
-                        currentAudio = null;
+                    if (data.effect.text) {
+                        const txt = document.createElement("div");
+                        txt.className = "overlay-text";
+                        txt.innerText = data.effect.text;
+                        const textStyle = data.effect.textStyle || {};
+                        txt.style.fontFamily = textStyle.font || 'Arial';
+                        txt.style.fontSize = (textStyle.size || 32) + 'px';
+                        txt.style.color = textStyle.color || '#FFFFFF';
+                        txt.style.webkitTextStroke = `${textStyle.borderWidth || 2}px ${textStyle.borderColor || '#000000'}`;
+                        wrapper.appendChild(txt);
                     }
-                    wrapper.remove();
-                    ws.send(JSON.stringify({
-                        type: "effect_completed",
-                        data: { queueId: data.queueId }
-                    }));
-                };
 
-                // 音声再生
-                // sound タイプ: filePath が音声ファイル本体（onended で完了を検知）
-                // image/video タイプ: audioPath が補助効果音（duration で管理）
-                const audioSrc = (data.effect.type === "sound")
-                    ? data.effect.filePath
-                    : data.effect.audioPath;
+                    container.appendChild(wrapper);
 
-                if (audioSrc) {
-                    currentAudio = new Audio(audioSrc);
-                    currentAudio.volume = (data.effect.volume || 80) / 100;
-                    if (data.effect.type === "sound") {
-                        // sound タイプ: 音声終了で完了（duration は上限タイムアウト）
-                        currentAudio.onended = completeEffect;
-                        currentAudio.onerror = completeEffect;
+                    let effectDone = false;
+                    const completeEffect = () => {
+                        if (effectDone) return;
+                        effectDone = true;
+
+                        if (currentEffect && currentEffect.audio) {
+                            try {
+                                currentEffect.audio.pause();
+                            } catch(e){}
+                        }
+
+                        try {
+                            wrapper.remove();
+                        } catch(e){}
+
+                        try {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    type: "effect_completed",
+                                    data: { queueId: data.queueId }
+                                }));
+                            }
+                        } catch (e) {
+                            console.error("Failed to send effect_completed:", e);
+                        }
+                    };
+
+                    currentEffect = {
+                        queueId: data.queueId,
+                        wrapper: wrapper,
+                        audio: null,
+                        timeoutId: null
+                    };
+
+                    const audioSrc = (data.effect.type === "sound")
+                        ? (data.effect.audioPath || data.effect.filePath)
+                        : data.effect.audioPath;
+
+                    if (audioSrc) {
+                        try {
+                            const audio = new Audio(audioSrc);
+                            currentEffect.audio = audio;
+                            audio.volume = (data.effect.volume || 80) / 100;
+                            if (data.effect.type === "sound") {
+                                audio.onended = completeEffect;
+                                audio.onerror = completeEffect;
+                            }
+                            audio.play().catch(e => {
+                                console.log("Audio play blocked:", e);
+                                if (data.effect.type === "sound") completeEffect();
+                            });
+                        } catch (e) {
+                            console.error("Failed to play audio:", e);
+                            if (data.effect.type === "sound") completeEffect();
+                        }
                     }
-                    currentAudio.play().catch(e => {
-                        console.log("Audio play blocked:", e);
-                        if (data.effect.type === "sound") completeEffect();
-                    });
-                }
 
-                // タイムアウト: image は duration 厳守、video/sound は上限フォールバック
-                setTimeout(completeEffect, (data.effect.duration || 5) * 1000);
-            } else if (msg.type === "stop_all") {
-                document.getElementById("overlay-container").innerHTML = "";
+                    currentEffect.timeoutId = setTimeout(completeEffect, (data.effect.duration || 5) * 1000);
+                } else if (msg.type === "stop_all") {
+                    clearCurrentEffect();
+                }
+            } catch (e) {
+                console.error("Error processing message:", e);
             }
         };
     </script>
@@ -388,6 +439,7 @@ void OverlayServer::setupHttpRoutes()
         QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
         QHttpHeaders headers;
         headers.append("Access-Control-Allow-Origin", "*");
+        headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
         response.setHeaders(headers);
         return response;
     });
@@ -405,3 +457,23 @@ QString OverlayServer::getMimeType(const QString& filepath) const
     if (ext == "mp4")  return "video/mp4";
     return "application/octet-stream";
 }
+
+void OverlayServer::broadcastMessage(const QString& message)
+{
+    QList<QWebSocket*> activeClients;
+    for (auto* client : m_clients) {
+        if (client && client->state() == QAbstractSocket::ConnectedState) {
+            client->sendTextMessage(message);
+            activeClients.append(client);
+        } else {
+            if (client) {
+                client->deleteLater();
+            }
+        }
+    }
+    if (m_clients.size() != activeClients.size()) {
+        m_clients = activeClients;
+        emit clientCountChanged(m_clients.size());
+    }
+}
+

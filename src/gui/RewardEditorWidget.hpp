@@ -35,6 +35,7 @@ private:
 
     QComboBox* m_effectTypeCombo;
     QLineEdit* m_imagePathEdit;
+    QPushButton* m_imageSelectBtn; // 画像参照ボタンへのポインタを追加
     QLineEdit* m_audioPathEdit;
     QSpinBox* m_durationSpin;
     QSpinBox* m_scaleSpin;    // 表示サイズ (1～100 %)
@@ -60,6 +61,7 @@ public:
     ~RewardEditorWidget() = default;
  
     void reloadRewardsList();
+    void selectRewardAndEffect(const QString& rewardId, int effectIndex = 0);
  
 private slots:
     void onRewardSelected(QListWidgetItem* item);
@@ -72,6 +74,7 @@ private slots:
     void onCustomRewardsFetchFailed(const QString& errorMessage);
     
     void onEffectSelectorChanged(int index);
+    void onEffectTypeChanged(int index); // 「演出の種類」切り替えスロットを追加
     void onAddEffectClicked();
     void onDeleteEffectClicked();
     

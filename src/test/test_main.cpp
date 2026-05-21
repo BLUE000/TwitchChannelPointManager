@@ -326,8 +326,75 @@ TEST(TwitchAuthTest, ExchangeTokenWithMockHttp) {
     EXPECT_EQ(args.at(2).toString(), "12345678");
 }
 
+// ==========================================
+// 6. TwitchEventSub 重複排除機能のテスト
+// ==========================================
+#include "twitch/TwitchEventSub.hpp"
+
+TEST(TwitchEventSubTest, DuplicateMessageDeduplication) {
+    TwitchEventSub eventSub;
+    QSignalSpy redeemedSpy(&eventSub, &TwitchEventSub::channelPointRedeemed);
+
+    // テスト用のメッセージを作成 (有効なJSONかつ通知メッセージ)
+    // message_id が同一のメッセージを2回送り、2回目は無視されることを確認する。
+    QString testMessage1 = R"({
+        "metadata": {
+            "message_id": "test-msg-id-12345",
+            "message_type": "notification",
+            "subscription_type": "channel.channel_points_custom_reward_redemption.add",
+            "subscription_version": "1"
+        },
+        "payload": {
+            "subscription": {
+                "type": "channel.channel_points_custom_reward_redemption.add"
+            },
+            "event": {
+                "reward": {
+                    "id": "reward-id-abc"
+                },
+                "user_name": "test_user",
+                "redeemed_at": "2026-05-22T07:23:45.000Z"
+            }
+        }
+    })";
+
+    // 1回目：処理されるべき
+    QMetaObject::invokeMethod(&eventSub, "onTextMessageReceived", Q_ARG(QString, testMessage1));
+    EXPECT_EQ(redeemedSpy.count(), 1);
+
+    // 2回目（同一メッセージID）：無視されるべき
+    QMetaObject::invokeMethod(&eventSub, "onTextMessageReceived", Q_ARG(QString, testMessage1));
+    EXPECT_EQ(redeemedSpy.count(), 1); // 追加でトリガーされない
+
+    // 3回目（異なるメッセージID）：処理されるべき
+    QString testMessage2 = R"({
+        "metadata": {
+            "message_id": "test-msg-id-67890",
+            "message_type": "notification",
+            "subscription_type": "channel.channel_points_custom_reward_redemption.add",
+            "subscription_version": "1"
+        },
+        "payload": {
+            "subscription": {
+                "type": "channel.channel_points_custom_reward_redemption.add"
+            },
+            "event": {
+                "reward": {
+                    "id": "reward-id-abc"
+                },
+                "user_name": "test_user",
+                "redeemed_at": "2026-05-22T07:23:45.000Z"
+            }
+        }
+    })";
+
+    QMetaObject::invokeMethod(&eventSub, "onTextMessageReceived", Q_ARG(QString, testMessage2));
+    EXPECT_EQ(redeemedSpy.count(), 2);
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
