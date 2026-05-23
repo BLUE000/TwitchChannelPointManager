@@ -392,6 +392,53 @@ TEST(TwitchEventSubTest, DuplicateMessageDeduplication) {
     EXPECT_EQ(redeemedSpy.count(), 2);
 }
 
+// ==========================================
+// 7. HTML/CSS サニタイザーのテスト
+// ==========================================
+#include "core/HTMLSanitizer.hpp"
+
+TEST(HTMLSanitizerTest, BasicSanitization) {
+    // 1. スクリプトの除去
+    QString scriptHtml = "<div>Hello <script>alert(1);</script>World</div>";
+    QString cleanedScript = HTMLSanitizer::sanitizeHtml(scriptHtml);
+    EXPECT_FALSE(cleanedScript.contains("<script>"));
+    EXPECT_TRUE(cleanedScript.contains("<div>Hello World</div>"));
+
+    // 2. イベントハンドラの除去
+    // サニタイズされると onclick 属性自体が綺麗に取り除かれるか検証
+    QString onclickHtml = "<div onclick=\"runMaliciousCode()\" class=\"test\">Click here</div>";
+    QString cleanedOnclick = HTMLSanitizer::sanitizeHtml(onclickHtml);
+    EXPECT_FALSE(cleanedOnclick.contains("onclick"));
+    EXPECT_TRUE(cleanedOnclick.contains("class=\"test\""));
+
+    // 3. ホワイトリスト外タグの除去 (iframe, object等)
+    QString tagHtml = "<div><iframe src='http://evil.com'></iframe><p>Allowed</p></div>";
+    QString cleanedTag = HTMLSanitizer::sanitizeHtml(tagHtml);
+    EXPECT_FALSE(cleanedTag.contains("iframe"));
+    EXPECT_TRUE(cleanedTag.contains("<p>Allowed</p>"));
+
+    // 4. 画像のローカル画像制限
+    // 外部画像 -> 除去
+    QString extImgHtml = "<img src=\"https://evil.com/pic.png\" class=\"avatar\">";
+    QString cleanedExtImg = HTMLSanitizer::sanitizeHtml(extImgHtml);
+    EXPECT_FALSE(cleanedExtImg.contains("src=\"https://evil.com/pic.png\""));
+    // SVG埋め込み -> 除去
+    QString svgImgHtml = "<img src=\"data:image/svg+xml;base64,1234\">";
+    QString cleanedSvgImg = HTMLSanitizer::sanitizeHtml(svgImgHtml);
+    EXPECT_FALSE(cleanedSvgImg.contains("data:image"));
+    // ローカル画像 (PNG) -> 許可
+    QString localImgHtml = "<img src=\"custom_html/assets/icon.png\" id=\"img1\">";
+    QString cleanedLocalImg = HTMLSanitizer::sanitizeHtml(localImgHtml);
+    EXPECT_TRUE(cleanedLocalImg.contains("src=\"custom_html/assets/icon.png\""));
+
+    // 5. CSS内の外部参照除去
+    QString styleHtml = "<style>@import 'http://evil.com/style.css'; div { background: url('https://evil.com/bg.png'); color: red; }</style>";
+    QString cleanedStyle = HTMLSanitizer::sanitizeHtml(styleHtml);
+    EXPECT_FALSE(cleanedStyle.contains("@import"));
+    EXPECT_FALSE(cleanedStyle.contains("url("));
+    EXPECT_TRUE(cleanedStyle.contains("color: red;"));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     ::testing::InitGoogleTest(&argc, argv);

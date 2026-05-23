@@ -1,4 +1,5 @@
 #include "OverlayServer.hpp"
+#include "../core/HTMLSanitizer.hpp"
 #include "FileManager.hpp"
 #include "../core/Logger.hpp"
 #include "../core/Application.hpp"
@@ -264,8 +265,16 @@ void OverlayServer::setupHttpRoutes()
         QByteArray fileData = file.readAll();
         file.close();
 
+        // HTML/htm アセットの場合は配信前にサニタイズ処理を通す
+        QString mime = getMimeType(realPath);
+        if (mime == "text/html" || realPath.endsWith(".html", Qt::CaseInsensitive) || realPath.endsWith(".htm", Qt::CaseInsensitive)) {
+            QString rawHtml = QString::fromUtf8(fileData);
+            QString sanitizedHtml = HTMLSanitizer::sanitizeHtml(rawHtml);
+            fileData = sanitizedHtml.toUtf8();
+        }
+
         // レスポンスの構築（CORS ヘッダー & キャッシュ防止ヘッダー付与）
-        QHttpServerResponse response(getMimeType(realPath).toUtf8(), fileData);
+        QHttpServerResponse response(mime.toUtf8(), fileData);
         QHttpHeaders headers;
         headers.append("Access-Control-Allow-Origin", "*");
         headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -662,6 +671,9 @@ void OverlayServer::setupHttpRoutes()
             in.setEncoding(QStringConverter::Utf8);
             QString html = in.readAll();
             file.close();
+
+            // 配信前に超厳格サニタイズ処理を通す
+            html = HTMLSanitizer::sanitizeHtml(html);
 
             // {{HTTP_PORT}} を実際のポート番号へ置換（カスタムHTMLでも使えるようにする）
             html.replace("{{HTTP_PORT}}", QString::number(m_httpPort));

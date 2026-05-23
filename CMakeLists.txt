@@ -49,6 +49,8 @@ set(SOURCES
     src/core/Logger.cpp
     src/core/ServerCipherEngine.hpp
     src/core/ServerCipherEngine.cpp
+    src/core/HTMLSanitizer.hpp
+    src/core/HTMLSanitizer.cpp
     
     # Database
     src/database/Database.hpp
@@ -236,6 +238,8 @@ set(TEST_SOURCES
     src/core/Logger.cpp
     src/core/ServerCipherEngine.hpp
     src/core/ServerCipherEngine.cpp
+    src/core/HTMLSanitizer.hpp
+    src/core/HTMLSanitizer.cpp
     
     # Database
     src/database/Database.hpp
