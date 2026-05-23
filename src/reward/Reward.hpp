@@ -71,6 +71,12 @@ struct Effect {
     QString text;               // 表示用テキスト
     TextStyle textStyle;
 
+    // 外部スクリプト専用モード拡張
+    bool isExternalScriptOnly = false;
+    QString htmlPath;
+    QString perlPath;
+    QString phpPath;
+
     QJsonObject toJson() const {
         QJsonObject obj;
         obj.insert("type", type);
@@ -83,6 +89,11 @@ struct Effect {
         obj.insert("volume", volume);
         obj.insert("text", text);
         obj.insert("textStyle", textStyle.toJson());
+        
+        obj.insert("isExternalScriptOnly", isExternalScriptOnly);
+        obj.insert("htmlPath", htmlPath);
+        obj.insert("perlPath", perlPath);
+        obj.insert("phpPath", phpPath);
         return obj;
     }
 
@@ -98,6 +109,11 @@ struct Effect {
         eff.volume = obj.value("volume").toInt(80);
         eff.text = obj.value("text").toString();
         eff.textStyle = TextStyle::fromJson(obj.value("textStyle").toObject());
+        
+        eff.isExternalScriptOnly = obj.value("isExternalScriptOnly").toBool(false);
+        eff.htmlPath = obj.value("htmlPath").toString();
+        eff.perlPath = obj.value("perlPath").toString();
+        eff.phpPath = obj.value("phpPath").toString();
         return eff;
     }
 };

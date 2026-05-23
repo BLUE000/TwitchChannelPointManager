@@ -33,6 +33,18 @@ private:
     QPushButton* m_addEffectBtn;
     QPushButton* m_deleteEffectBtn;
 
+    // 外部スクリプト専用モード用コントロール
+    QCheckBox* m_isExternalScriptOnlyCb;
+    QWidget* m_normalEffectConfigWidget;
+    QWidget* m_externalScriptConfigWidget;
+
+    QLineEdit* m_htmlPathEdit;
+    QPushButton* m_htmlSelectBtn;
+    QLineEdit* m_perlScriptPathEdit;
+    QPushButton* m_perlScriptSelectBtn;
+    QLineEdit* m_phpScriptPathEdit;
+    QPushButton* m_phpScriptSelectBtn;
+
     QComboBox* m_effectTypeCombo;
     QLabel* m_imagePathLabel;
     QLineEdit* m_imagePathEdit;
@@ -82,6 +94,10 @@ private slots:
     // パス参照ダイアログを開く
     void selectImagePath();
     void selectAudioPath();
+    void selectHtmlPath();
+    void selectPerlScriptPath();
+    void selectPhpScriptPath();
+    void onExternalScriptOnlyToggled(bool checked);
 
 private:
     void setupUi();

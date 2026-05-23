@@ -7,12 +7,14 @@
 #include <QJsonObject>
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <QHttpServerResponse>
 #include <QTcpServer>
 #include <QProcess>
 #include <QCoreApplication>
 #include <QTextStream>
 #include <QHttpServerRequest>
+#include <QTimer>
 #include <QUrlQuery>
 #include <QJsonArray>
 
@@ -95,6 +97,78 @@ void OverlayServer::stop()
 
 void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
 {
+    if (effect.isExternalScriptOnly) {
+        if (m_database) {
+            QString enabled = m_database->getSetting("script_integration_enabled", "0");
+            if (enabled != "1") {
+                LOG_WARN("External script integration is disabled in system settings. Script execution skipped.");
+                emit effectFinished(item.queueId);
+                return;
+            }
+        }
+
+        // 1. HTML演出の配信（OBSへ送信）
+        if (!effect.htmlPath.isEmpty()) {
+            QString appDir = QCoreApplication::applicationDirPath();
+            // 相対パスを絶対パスへ変換
+            QString absoluteHtmlPath = QDir::toNativeSeparators(appDir + "/" + effect.htmlPath);
+            QString servedHtmlUrl = m_fileManager->registerAsset(absoluteHtmlPath);
+            
+            QJsonObject payload;
+            payload.insert("type", "show_custom_html");
+            payload.insert("url", servedHtmlUrl);
+            payload.insert("duration", effect.duration);
+            payload.insert("queueId", item.queueId);
+
+            QJsonDocument doc(payload);
+            QString msg = doc.toJson(QJsonDocument::Compact);
+            
+            LOG_INFO("Broadcasting custom HTML overlay to OBS: " + servedHtmlUrl);
+            for (auto* client : m_clients) {
+                client->sendTextMessage(msg);
+            }
+        }
+
+        // 2. Perl スクリプトの実行
+        if (!effect.perlPath.isEmpty() && m_database) {
+            QString perlInterpreter = m_database->getSetting("perl_interpreter_path", "");
+            if (!perlInterpreter.isEmpty()) {
+                QString appDir = QCoreApplication::applicationDirPath();
+                QString absolutePerlPath = QDir::toNativeSeparators(appDir + "/" + effect.perlPath);
+                
+                QStringList arguments;
+                arguments << absolutePerlPath << item.username << item.rewardId << item.timestamp.toString(Qt::ISODate);
+                LOG_INFO("Executing external Perl script (Full mode): " + absolutePerlPath);
+                QProcess::startDetached(perlInterpreter, arguments);
+            } else {
+                LOG_WARN("Perl interpreter is not configured. Skipping Perl script.");
+            }
+        }
+
+        // 3. PHP スクリプトの実行
+        if (!effect.phpPath.isEmpty() && m_database) {
+            QString phpInterpreter = m_database->getSetting("php_interpreter_path", "");
+            if (!phpInterpreter.isEmpty()) {
+                QString appDir = QCoreApplication::applicationDirPath();
+                QString absolutePhpPath = QDir::toNativeSeparators(appDir + "/" + effect.phpPath);
+                
+                QStringList arguments;
+                arguments << absolutePhpPath << item.username << item.rewardId << item.timestamp.toString(Qt::ISODate);
+                LOG_INFO("Executing external PHP script (Full mode): " + absolutePhpPath);
+                QProcess::startDetached(phpInterpreter, arguments);
+            } else {
+                LOG_WARN("PHP interpreter is not configured. Skipping PHP script.");
+            }
+        }
+
+        // 表示時間経過後に完了を通知し、演出順次キューの同期をとる
+        int waitTime = qMax(1, effect.duration);
+        QTimer::singleShot(waitTime * 1000, this, [this, item]() {
+            emit effectFinished(item.queueId);
+        });
+        return;
+    }
+
     if (effect.type == "script") {
         QString scriptPath = effect.filePath;
         QString username = item.username;
@@ -377,7 +451,52 @@ void OverlayServer::setupHttpRoutes()
             try {
                 const msg = JSON.parse(event.data);
                 
-                if (msg.type === "show_effect") {
+                if (msg.type === "show_custom_html") {
+                    const data = msg;
+                    clearCurrentEffect();
+
+                    const container = document.getElementById("overlay-container");
+                    if (!container) return;
+
+                    const iframe = document.createElement("iframe");
+                    iframe.src = data.url;
+                    iframe.style.width = "100vw";
+                    iframe.style.height = "100vh";
+                    iframe.style.border = "none";
+                    iframe.style.backgroundColor = "transparent";
+                    iframe.style.position = "absolute";
+                    iframe.style.left = "0";
+                    iframe.style.top = "0";
+
+                    container.appendChild(iframe);
+
+                    let effectDone = false;
+                    const completeEffect = () => {
+                        if (effectDone) return;
+                        effectDone = true;
+                        try {
+                            iframe.remove();
+                        } catch(e){}
+
+                        try {
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(JSON.stringify({
+                                    type: "effect_completed",
+                                    data: { queueId: data.queueId }
+                                }));
+                            }
+                        } catch (e) {
+                            console.error("Failed to send effect_completed:", e);
+                        }
+                    };
+
+                    currentEffect = {
+                        queueId: data.queueId,
+                        wrapper: iframe,
+                        audio: null,
+                        timeoutId: setTimeout(completeEffect, (data.duration || 5) * 1000)
+                    };
+                } else if (msg.type === "show_effect") {
                     const data = msg.data;
                     
                     clearCurrentEffect();

@@ -286,3 +286,15 @@ target_link_libraries(TwitchChannelPointTest PRIVATE
     Qt6::Sql
     Qt6::Test
 )
+
+# ==========================================
+# ビルド出力ディレクトリへの external フォルダ自動コピー/作成
+# ==========================================
+add_custom_command(
+    TARGET TwitchChannelPointManager POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TwitchChannelPointManager>/external
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+            ${CMAKE_CURRENT_SOURCE_DIR}/external/README.txt 
+            $<TARGET_FILE_DIR:TwitchChannelPointManager>/external/README.txt
+    COMMENT "Creating external assets directory and copying README.txt..."
+)
