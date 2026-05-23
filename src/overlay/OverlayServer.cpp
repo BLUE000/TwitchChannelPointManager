@@ -12,6 +12,9 @@
 #include <QProcess>
 #include <QCoreApplication>
 #include <QTextStream>
+#include <QHttpServerRequest>
+#include <QUrlQuery>
+#include <QJsonArray>
 
 OverlayServer::OverlayServer(FileManager* fileManager, Database* database, QObject* parent)
     : QObject(parent)
@@ -142,6 +145,14 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
 
     // WebSocket 送信用 JSON の構築
     QJsonObject effectObj = effect.toJson();
+    
+    // {user} などのプレースホルダー置換
+    QString processedText = effect.text;
+    processedText.replace("{user}", item.username);
+    processedText.replace("{reward_id}", item.rewardId);
+    processedText.replace("{time}", item.timestamp.toLocalTime().toString("yyyy-MM-dd HH:mm:ss"));
+    effectObj.insert("text", processedText);
+
     effectObj.insert("filePath", servedFilePath);
     effectObj.insert("audioPath", servedAudioPath);
 
@@ -505,6 +516,199 @@ void OverlayServer::setupHttpRoutes()
 
         // WebSocketのポート設定を動的に注入
         html.replace("{{WS_PORT}}", QString::number(m_wsPort));
+
+        QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
+        QHttpHeaders headers;
+        headers.append("Access-Control-Allow-Origin", "*");
+        headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeaders(headers);
+        return response;
+    });
+
+    // ランキングデータ取得用API (JSON)
+    m_httpServer->route("/api/ranking", [this](const QHttpServerRequest& request) {
+        int period = 0; // デフォルトは今日 (Today)
+        
+        // クエリパラメータからperiod（期間）を取得
+        QUrlQuery query(request.url().query());
+        if (query.hasQueryItem("period")) {
+            period = query.queryItemValue("period").toInt();
+        }
+
+        QJsonArray arr;
+        if (m_database) {
+            QList<QPair<QString, int>> ranking = m_database->getRanking(period);
+            for (const auto& pair : ranking) {
+                QJsonObject obj;
+                obj.insert("name", pair.first);
+                obj.insert("count", pair.second);
+                arr.append(obj);
+            }
+        }
+
+        QJsonDocument doc(arr);
+        QHttpServerResponse response("application/json; charset=utf-8", doc.toJson(QJsonDocument::Compact));
+        QHttpHeaders headers;
+        headers.append("Access-Control-Allow-Origin", "*");
+        headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeaders(headers);
+        return response;
+    });
+
+    // ランキング表示用HTMLページ
+    m_httpServer->route("/ranking", [this]() {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString filePath = appDir + "/ranking.html";
+        QFile file(filePath);
+        QString html;
+
+        if (file.exists()) {
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&file);
+                in.setEncoding(QStringConverter::Utf8);
+                html = in.readAll();
+                file.close();
+            }
+        }
+
+        if (html.isEmpty()) {
+            // デフォルトのランキングHTMLテンプレートを自動生成
+            html = QString(R"HTML(<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>Twitch Channel Point Leaderboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background-color: transparent;
+            color: #FFFFFF;
+            overflow: hidden;
+        }
+        .leaderboard-card {
+            background: rgba(29, 29, 34, 0.85);
+            backdrop-filter: blur(10px);
+            border-top: 4px solid #6441A5;
+            border-radius: 12px;
+            padding: 20px;
+            width: 320px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            margin: 20px;
+        }
+        h2 {
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #E1E1E6;
+            text-align: center;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 8px;
+        }
+        .ranking-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .ranking-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s;
+        }
+        .ranking-item:last-child {
+            border-bottom: none;
+        }
+        .rank {
+            font-weight: bold;
+            font-size: 16px;
+            width: 30px;
+            text-align: center;
+        }
+        .rank-1 { color: #FFD700; }
+        .rank-2 { color: #C0C0C0; }
+        .rank-3 { color: #CD7F32; }
+        .name {
+            flex-grow: 1;
+            font-size: 14px;
+            padding-left: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .count {
+            font-weight: bold;
+            color: #6441A5;
+            background: rgba(100, 65, 165, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="leaderboard-card">
+        <h2>🏆 本日の演出使用数ランキング</h2>
+        <ul id="leaderboard" class="ranking-list">
+            <!-- JavaScriptで動的に生成 -->
+        </ul>
+    </div>
+    <script>
+        async function fetchRanking() {
+            try {
+                // ポート番号はアプリ側で自動置換されます
+                const res = await fetch("http://localhost:{{HTTP_PORT}}/api/ranking?period=0");
+                const data = await res.json();
+                
+                const list = document.getElementById("leaderboard");
+                list.innerHTML = "";
+                
+                if (data.length === 0) {
+                    list.innerHTML = "<li class='ranking-item' style='justify-content: center; color: #aaa;'>データがありません</li>";
+                    return;
+                }
+
+                data.forEach((item, index) => {
+                    const li = document.createElement("li");
+                    li.className = "ranking-item";
+                    
+                    const rankNum = index + 1;
+                    let rankClass = `rank rank-${rankNum}`;
+                    if (rankNum > 3) rankClass = "rank";
+
+                    li.innerHTML = `
+                        <span class="${rankClass}">${rankNum}</span>
+                        <span class="name">${item.name}</span>
+                        <span class="count">${item.count}回</span>
+                    `;
+                    list.appendChild(li);
+                });
+            } catch (e) {
+                console.error("Failed to fetch ranking:", e);
+            }
+        }
+
+        // 5秒ごとに最新ランキングを自動更新
+        fetchRanking();
+        setInterval(fetchRanking, 5000);
+    </script>
+</body>
+</html>
+)HTML");
+
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                out.setEncoding(QStringConverter::Utf8);
+                out << html;
+                file.close();
+                LOG_INFO("Created default ranking.html template in application directory: " + filePath);
+            }
+        }
+
+        // HTTPサーバーのポート設定を動的に注入
+        html.replace("{{HTTP_PORT}}", QString::number(m_httpPort));
 
         QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
         QHttpHeaders headers;
