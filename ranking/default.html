@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>Twitch Channel Point Leaderboard</title>
+    <!--
+        ================================================================
+         ranking/default.html - デフォルトランキングレイアウト
+        ================================================================
+        このファイルを自由に編集・コピーして、独自のレイアウトを作れます。
+
+        ■ データ取得 API
+          GET http://localhost:{{HTTP_PORT}}/api/ranking?period=<期間>
+          period: 0=今日 / 1=今週 / 2=今月 / 3=全期間
+
+        ■ このファイルの特記事項
+          {{HTTP_PORT}} はアプリ起動時に自動的に実際のポート番号へ置換されます。
+          カスタムHTMLを作る場合はこのプレースホルダーをそのまま使えます。
+        ================================================================
+    -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background-color: transparent;
+            color: #FFFFFF;
+            overflow: hidden;
+        }
+        .leaderboard-card {
+            background: rgba(29, 29, 34, 0.85);
+            backdrop-filter: blur(10px);
+            border-top: 4px solid #6441A5;
+            border-radius: 12px;
+            padding: 20px;
+            width: 320px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            margin: 20px;
+        }
+        h2 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #E1E1E6;
+            text-align: center;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 8px;
+        }
+        .ranking-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .ranking-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            transition: background 0.2s;
+            border-radius: 6px;
+        }
+        .ranking-item:last-child {
+            border-bottom: none;
+        }
+        .rank {
+            font-weight: 700;
+            font-size: 16px;
+            width: 32px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .rank-1 { color: #FFD700; }
+        .rank-2 { color: #C0C0C0; }
+        .rank-3 { color: #CD7F32; }
+        .name {
+            flex-grow: 1;
+            font-size: 14px;
+            padding-left: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .count {
+            font-weight: 600;
+            color: #A78BFA;
+            background: rgba(100, 65, 165, 0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        .no-data {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            padding: 12px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="leaderboard-card">
+        <h2>🏆 本日の演出使用数ランキング</h2>
+        <ul id="leaderboard" class="ranking-list">
+            <!-- JavaScriptで動的に生成 -->
+        </ul>
+    </div>
+    <script>
+        // ================================================================
+        //  ランキングデータ取得・描画
+        //  API: http://localhost:{{HTTP_PORT}}/api/ranking?period=<期間>
+        //  period: 0=今日 / 1=今週 / 2=今月 / 3=全期間
+        // ================================================================
+        async function fetchRanking() {
+            try {
+                const res = await fetch("http://localhost:{{HTTP_PORT}}/api/ranking?period=0");
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+
+                const list = document.getElementById("leaderboard");
+                list.innerHTML = "";
+
+                if (!data || data.length === 0) {
+                    list.innerHTML = "<li class='no-data'>データがありません</li>";
+                    return;
+                }
+
+                data.forEach((item, index) => {
+                    const li = document.createElement("li");
+                    li.className = "ranking-item";
+
+                    const rankNum = index + 1;
+                    const rankClass = rankNum <= 3 ? `rank rank-${rankNum}` : "rank";
+                    const medal = rankNum === 1 ? "🥇" : rankNum === 2 ? "🥈" : rankNum === 3 ? "🥉" : rankNum;
+
+                    li.innerHTML = `
+                        <span class="${rankClass}">${medal}</span>
+                        <span class="name">${item.name}</span>
+                        <span class="count">${item.count}回</span>
+                    `;
+                    list.appendChild(li);
+                });
+            } catch (e) {
+                console.error("Failed to fetch ranking:", e);
+            }
+        }
+
+        // 初回ロード & 5秒ごとに自動更新
+        fetchRanking();
+        setInterval(fetchRanking, 5000);
+    </script>
+</body>
+</html>

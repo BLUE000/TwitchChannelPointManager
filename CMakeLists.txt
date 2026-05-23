@@ -298,3 +298,19 @@ add_custom_command(
             $<TARGET_FILE_DIR:TwitchChannelPointManager>/external/README.txt
     COMMENT "Creating external assets directory and copying README.txt..."
 )
+
+# ==========================================
+# ビルド出力ディレクトリへの ranking フォルダ自動コピー/作成
+# ==========================================
+add_custom_command(
+    TARGET TwitchChannelPointManager POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TwitchChannelPointManager>/ranking
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/ranking/README.txt
+            $<TARGET_FILE_DIR:TwitchChannelPointManager>/ranking/README.txt
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_CURRENT_SOURCE_DIR}/ranking/default.html
+            $<TARGET_FILE_DIR:TwitchChannelPointManager>/ranking/default.html
+    COMMENT "Creating ranking overlay directory and copying default files..."
+)
+

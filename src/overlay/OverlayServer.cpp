@@ -764,159 +764,28 @@ void OverlayServer::setupHttpRoutes()
         return response;
     });
 
-    // ランキング表示用HTMLページ
+    // ランキング表示用HTMLページ（/ranking は /ranking/default.html へフォールバック）
     m_httpServer->route("/ranking", [this]() {
-        QString appDir = QCoreApplication::applicationDirPath();
-        QString filePath = appDir + "/ranking.html";
+        QString rankingDir = QCoreApplication::applicationDirPath() + "/ranking";
+        QString filePath = rankingDir + "/default.html";
         QFile file(filePath);
         QString html;
 
-        if (file.exists()) {
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QTextStream in(&file);
-                in.setEncoding(QStringConverter::Utf8);
-                html = in.readAll();
-                file.close();
-            }
+        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            in.setEncoding(QStringConverter::Utf8);
+            html = in.readAll();
+            file.close();
         }
 
         if (html.isEmpty()) {
-            // デフォルトのランキングHTMLテンプレートを自動生成
-            html = QString(R"HTML(<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="utf-8">
-    <title>Twitch Channel Point Leaderboard</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0;
-            background-color: transparent;
-            color: #FFFFFF;
-            overflow: hidden;
-        }
-        .leaderboard-card {
-            background: rgba(29, 29, 34, 0.85);
-            backdrop-filter: blur(10px);
-            border-top: 4px solid #6441A5;
-            border-radius: 12px;
-            padding: 20px;
-            width: 320px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            margin: 20px;
-        }
-        h2 {
-            font-size: 18px;
-            margin-top: 0;
-            margin-bottom: 15px;
-            color: #E1E1E6;
-            text-align: center;
-            letter-spacing: 1px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 8px;
-        }
-        .ranking-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .ranking-item {
-            display: flex;
-            align-items: center;
-            padding: 8px 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            transition: all 0.3s;
-        }
-        .ranking-item:last-child {
-            border-bottom: none;
-        }
-        .rank {
-            font-weight: bold;
-            font-size: 16px;
-            width: 30px;
-            text-align: center;
-        }
-        .rank-1 { color: #FFD700; }
-        .rank-2 { color: #C0C0C0; }
-        .rank-3 { color: #CD7F32; }
-        .name {
-            flex-grow: 1;
-            font-size: 14px;
-            padding-left: 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .count {
-            font-weight: bold;
-            color: #6441A5;
-            background: rgba(100, 65, 165, 0.2);
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-        }
-    </style>
-</head>
-<body>
-    <div class="leaderboard-card">
-        <h2>🏆 本日の演出使用数ランキング</h2>
-        <ul id="leaderboard" class="ranking-list">
-            <!-- JavaScriptで動的に生成 -->
-        </ul>
-    </div>
-    <script>
-        async function fetchRanking() {
-            try {
-                // ポート番号はアプリ側で自動置換されます
-                const res = await fetch("http://localhost:{{HTTP_PORT}}/api/ranking?period=0");
-                const data = await res.json();
-                
-                const list = document.getElementById("leaderboard");
-                list.innerHTML = "";
-                
-                if (data.length === 0) {
-                    list.innerHTML = "<li class='ranking-item' style='justify-content: center; color: #aaa;'>データがありません</li>";
-                    return;
-                }
-
-                data.forEach((item, index) => {
-                    const li = document.createElement("li");
-                    li.className = "ranking-item";
-                    
-                    const rankNum = index + 1;
-                    let rankClass = `rank rank-${rankNum}`;
-                    if (rankNum > 3) rankClass = "rank";
-
-                    li.innerHTML = `
-                        <span class="${rankClass}">${rankNum}</span>
-                        <span class="name">${item.name}</span>
-                        <span class="count">${item.count}回</span>
-                    `;
-                    list.appendChild(li);
-                });
-            } catch (e) {
-                console.error("Failed to fetch ranking:", e);
-            }
+            html = "<html><body style='color:white;background:#121214;font-family:sans-serif;padding:20px'>"
+                   "<h2>⚠️ ranking/default.html が見つかりません</h2>"
+                   "<p>アプリを再インストールするか、ranking/ フォルダに default.html を配置してください。</p>"
+                   "</body></html>";
         }
 
-        // 5秒ごとに最新ランキングを自動更新
-        fetchRanking();
-        setInterval(fetchRanking, 5000);
-    </script>
-</body>
-</html>
-)HTML");
-
-            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QTextStream out(&file);
-                out.setEncoding(QStringConverter::Utf8);
-                out << html;
-                file.close();
-                LOG_INFO("Created default ranking.html template in application directory: " + filePath);
-            }
-        }
-
-        // HTTPサーバーのポート設定を動的に注入
+        // {{HTTP_PORT}} を実際のポート番号へ置換
         html.replace("{{HTTP_PORT}}", QString::number(m_httpPort));
 
         QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
@@ -926,7 +795,111 @@ void OverlayServer::setupHttpRoutes()
         response.setHeaders(headers);
         return response;
     });
+
+    // ランキング用ファイル名指定ルート（HTML静的配信 / PHP・CGI実行対応）
+    m_httpServer->route("/ranking/<arg>", [this](const QString& fileName) {
+        QString rankingDir = QDir::cleanPath(QCoreApplication::applicationDirPath() + "/ranking");
+
+        // ファイル名からパストラバーサル攻撃を防ぐ（ranking/ フォルダ外へのアクセスを禁止）
+        QString requestedPath = QDir::cleanPath(rankingDir + "/" + fileName);
+        QString canonicalRankingDir = QDir(rankingDir).canonicalPath();
+        if (!canonicalRankingDir.isEmpty() && !requestedPath.startsWith(canonicalRankingDir)) {
+            LOG_WARN(QString("Path traversal attempt blocked: %1").arg(fileName));
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::Forbidden);
+        }
+
+        QFileInfo fileInfo(requestedPath);
+        if (!fileInfo.exists() || !fileInfo.isFile()) {
+            LOG_WARN(QString("Ranking file not found: %1").arg(requestedPath));
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+        }
+
+        QString ext = fileInfo.suffix().toLower();
+
+        // ──────────────────────────────────────────────
+        // HTML: 静的ファイルとして配信
+        // ──────────────────────────────────────────────
+        if (ext == "html" || ext == "htm") {
+            QFile file(requestedPath);
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                return QHttpServerResponse(QHttpServerResponse::StatusCode::InternalServerError);
+            }
+            QTextStream in(&file);
+            in.setEncoding(QStringConverter::Utf8);
+            QString html = in.readAll();
+            file.close();
+
+            // {{HTTP_PORT}} を実際のポート番号へ置換（カスタムHTMLでも使えるようにする）
+            html.replace("{{HTTP_PORT}}", QString::number(m_httpPort));
+
+            QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
+            QHttpHeaders headers;
+            headers.append("Access-Control-Allow-Origin", "*");
+            headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
+            response.setHeaders(headers);
+            return response;
+        }
+
+        // ──────────────────────────────────────────────
+        // PHP / Perl CGI: インタープリター実行して標準出力をレスポンスとして返す
+        // ──────────────────────────────────────────────
+        bool isPHP  = (ext == "php");
+        bool isPerl = (ext == "pl" || ext == "cgi");
+
+        if (isPHP || isPerl) {
+            // スクリプト連携機能の有効チェック
+            if (!m_database || m_database->getSetting("script_integration_enabled", "0") != "1") {
+                LOG_WARN("Ranking script access denied: script integration is disabled in system settings.");
+                return QHttpServerResponse(QHttpServerResponse::StatusCode::Forbidden);
+            }
+
+            QString interpreter;
+            if (isPHP) {
+                interpreter = m_database->getSetting("php_interpreter_path", "");
+                if (interpreter.isEmpty()) {
+                    LOG_WARN("Ranking PHP script access denied: PHP interpreter path is not configured.");
+                    return QHttpServerResponse(QHttpServerResponse::StatusCode::ServiceUnavailable);
+                }
+            } else {
+                interpreter = m_database->getSetting("perl_interpreter_path", "");
+                if (interpreter.isEmpty()) {
+                    LOG_WARN("Ranking Perl script access denied: Perl interpreter path is not configured.");
+                    return QHttpServerResponse(QHttpServerResponse::StatusCode::ServiceUnavailable);
+                }
+            }
+
+            LOG_INFO(QString("Executing ranking script via HTTP: %1").arg(requestedPath));
+
+            QProcess proc;
+            QStringList args;
+            args << requestedPath;
+            proc.start(interpreter, args);
+
+            if (!proc.waitForFinished(SCRIPT_TIMEOUT_SEC * 1000)) {
+                proc.kill();
+                LOG_WARN(QString("Ranking script timed out after %1 sec: %2").arg(SCRIPT_TIMEOUT_SEC).arg(requestedPath));
+                return QHttpServerResponse(QHttpServerResponse::StatusCode::ServiceUnavailable);
+            }
+
+            QByteArray output = proc.readAllStandardOutput();
+            if (output.isEmpty()) {
+                LOG_WARN("Ranking script produced no output: " + requestedPath);
+            }
+
+            QHttpServerResponse response("text/html; charset=utf-8", output);
+            QHttpHeaders headers;
+            headers.append("Access-Control-Allow-Origin", "*");
+            headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
+            response.setHeaders(headers);
+            return response;
+        }
+
+        // 対応していない拡張子は404
+        LOG_WARN(QString("Unsupported file type in ranking/: %1").arg(fileName));
+        return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+    });
 }
+
 
 QString OverlayServer::getMimeType(const QString& filepath) const
 {
