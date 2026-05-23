@@ -34,6 +34,7 @@ private:
     QPushButton* m_deleteEffectBtn;
 
     QComboBox* m_effectTypeCombo;
+    QLabel* m_imagePathLabel;
     QLineEdit* m_imagePathEdit;
     QPushButton* m_imageSelectBtn; // 画像参照ボタンへのポインタを追加
     QLineEdit* m_audioPathEdit;

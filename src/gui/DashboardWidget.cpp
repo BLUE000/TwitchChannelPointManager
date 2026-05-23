@@ -24,6 +24,11 @@ DashboardWidget::DashboardWidget(Application* app, QWidget* parent)
     connect(Logger::instance(), &Logger::newLogMessage,
             this, &DashboardWidget::onNewLogMessage);
 
+    connect(m_app->twitchEventSub(), &TwitchEventSub::connected,
+            this, &DashboardWidget::refreshStats);
+    connect(m_app->twitchEventSub(), &TwitchEventSub::disconnected,
+            this, &DashboardWidget::refreshStats);
+
     refreshStats();
 }
 
@@ -106,7 +111,7 @@ void DashboardWidget::onToggleConnection()
         // 設定ストレージからトークンやシークレットをロードして起動
         QString secretKey = "twitch_overlay_secret_key_2026";
         QString accessToken = m_app->config()->loadSecureString("twitch_access_token", secretKey);
-        QString clientId = m_app->config()->get("twitch_client_id").toString();
+        QString clientId = m_app->config()->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
         QString broadcasterId = m_app->config()->get("twitch_broadcaster_id").toString();
 
         if (accessToken.isEmpty() || clientId.isEmpty() || broadcasterId.isEmpty()) {

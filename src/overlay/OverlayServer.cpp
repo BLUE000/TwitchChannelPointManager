@@ -1,18 +1,24 @@
 #include "OverlayServer.hpp"
 #include "FileManager.hpp"
 #include "../core/Logger.hpp"
+#include "../core/Application.hpp"
+#include "../database/Database.hpp"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
 #include <QFileInfo>
 #include <QHttpServerResponse>
 #include <QTcpServer>
+#include <QProcess>
+#include <QCoreApplication>
+#include <QTextStream>
 
-OverlayServer::OverlayServer(FileManager* fileManager, QObject* parent)
+OverlayServer::OverlayServer(FileManager* fileManager, Database* database, QObject* parent)
     : QObject(parent)
     , m_wsServer(nullptr)
     , m_httpServer(nullptr)
     , m_fileManager(fileManager)
+    , m_database(database)
     , m_wsPort(28080)
     , m_httpPort(28081)
 {
@@ -86,6 +92,42 @@ void OverlayServer::stop()
 
 void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
 {
+    if (effect.type == "script") {
+        QString scriptPath = effect.filePath;
+        QString username = item.username;
+        QString rewardId = item.rewardId;
+        QString timestampStr = item.timestamp.toString(Qt::ISODate);
+
+        if (m_database) {
+            QString phpPath = m_database->getSetting("php_interpreter_path", "");
+            QString perlPath = m_database->getSetting("perl_interpreter_path", "");
+
+            QString interpreter;
+            QStringList arguments;
+
+            if (scriptPath.endsWith(".pl", Qt::CaseInsensitive) || scriptPath.endsWith(".cgi", Qt::CaseInsensitive)) {
+                interpreter = perlPath.isEmpty() ? "perl" : perlPath;
+                arguments << scriptPath << username << rewardId << timestampStr;
+            } else if (scriptPath.endsWith(".php", Qt::CaseInsensitive)) {
+                interpreter = phpPath.isEmpty() ? "php" : phpPath;
+                arguments << scriptPath << username << rewardId << timestampStr;
+            }
+
+            if (!interpreter.isEmpty()) {
+                LOG_INFO(QString("Executing external script: %1 %2").arg(interpreter).arg(scriptPath));
+                bool success = QProcess::startDetached(interpreter, arguments);
+                if (!success) {
+                    LOG_ERROR("Failed to start external script process.");
+                }
+            } else {
+                LOG_WARN("No interpreter matched for script: " + scriptPath);
+            }
+        }
+        
+        emit effectFinished(item.queueId);
+        return;
+    }
+
     if (m_clients.isEmpty()) {
         LOG_WARN("No OBS clients connected. Instantly auto-completing effect.");
         emit effectFinished(item.queueId);
@@ -224,8 +266,23 @@ void OverlayServer::setupHttpRoutes()
 
     // テスト兼OBS登録用のデフォルトオーバーレイHTMLページ
     m_httpServer->route("/overlay", [this]() {
-        QString html = QString(R"HTML(
-<!DOCTYPE html>
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString filePath = appDir + "/overlay.html";
+        QFile file(filePath);
+        QString html;
+
+        if (file.exists()) {
+            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                QTextStream in(&file);
+                in.setEncoding(QStringConverter::Utf8);
+                html = in.readAll();
+                file.close();
+            }
+        }
+
+        if (html.isEmpty()) {
+            // デフォルトのHTMLテンプレートを構築
+            html = QString(R"HTML(<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="utf-8">
@@ -283,7 +340,8 @@ void OverlayServer::setupHttpRoutes()
             });
         }
 
-        const ws = new WebSocket("ws://localhost:%1/overlay");
+        // ポートはアプリ側の設定に合わせて自動置換されます（手動固定する場合は直接ポート番号を記述してください）
+        const ws = new WebSocket("ws://localhost:{{WS_PORT}}/overlay");
 
         ws.onopen = () => {
             console.log("Connected to Twitch Overlay WebSocket Server");
@@ -434,7 +492,19 @@ void OverlayServer::setupHttpRoutes()
     </script>
 </body>
 </html>
-        )HTML").arg(m_wsPort);
+)HTML");
+
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                out.setEncoding(QStringConverter::Utf8);
+                out << html;
+                file.close();
+                LOG_INFO("Created default overlay.html template in application directory: " + filePath);
+            }
+        }
+
+        // WebSocketのポート設定を動的に注入
+        html.replace("{{WS_PORT}}", QString::number(m_wsPort));
 
         QHttpServerResponse response("text/html; charset=utf-8", html.toUtf8());
         QHttpHeaders headers;

@@ -9,6 +9,8 @@
 #include <QGroupBox>
 #include <QMessageBox>
 #include <QCheckBox>
+#include <QFileDialog>
+#include <QDir>
 
 SettingsWidget::SettingsWidget(Application* app, QWidget* parent)
     : QWidget(parent)
@@ -42,6 +44,37 @@ void SettingsWidget::setupUi()
     portLayout->addRow(m_savePortsBtn);
 
     mainLayout->addWidget(portGroup);
+
+    // 1b. 外部スクリプト設定
+    auto* scriptGroup = new QGroupBox("外部スクリプト連携設定 (Perl/PHP)", this);
+    auto* scriptLayout = new QFormLayout(scriptGroup);
+
+    // PHP パス
+    auto* phpLayout = new QHBoxLayout();
+    m_phpPathEdit = new QLineEdit(this);
+    m_phpPathEdit->setPlaceholderText("例: C:/php/php.exe (空欄の場合は PATH の php を使用)");
+    auto* phpBrowseBtn = new QPushButton("参照...", this);
+    phpLayout->addWidget(m_phpPathEdit);
+    phpLayout->addWidget(phpBrowseBtn);
+    scriptLayout->addRow("PHP 実行ファイルパス:", phpLayout);
+    connect(phpBrowseBtn, &QPushButton::clicked, this, &SettingsWidget::onBrowsePhpPath);
+
+    // Perl パス
+    auto* perlLayout = new QHBoxLayout();
+    m_perlPathEdit = new QLineEdit(this);
+    m_perlPathEdit->setPlaceholderText("例: C:/strawberry/perl/bin/perl.exe (空欄の場合は PATH の perl を使用)");
+    auto* perlBrowseBtn = new QPushButton("参照...", this);
+    perlLayout->addWidget(m_perlPathEdit);
+    perlLayout->addWidget(perlBrowseBtn);
+    scriptLayout->addRow("Perl 実行ファイルパス:", perlLayout);
+    connect(perlBrowseBtn, &QPushButton::clicked, this, &SettingsWidget::onBrowsePerlPath);
+
+    m_saveScriptBtn = new QPushButton("スクリプト設定を保存", this);
+    m_saveScriptBtn->setStyleSheet("background-color: #2196F3; color: white; font-weight: bold;");
+    connect(m_saveScriptBtn, &QPushButton::clicked, this, &SettingsWidget::onSaveScriptClicked);
+    scriptLayout->addRow(m_saveScriptBtn);
+
+    mainLayout->addWidget(scriptGroup);
 
     // 2. Twitch OAuth連携の設定
     auto* twitchGroup = new QGroupBox("Twitch 連携認証設定", this);
@@ -94,6 +127,11 @@ void SettingsWidget::loadCurrentSettings()
         int httpPort = m_app->database()->getSetting("asset_server_port", "28081").toInt();
         m_wsPortSpin->setValue(wsPort);
         m_httpPortSpin->setValue(httpPort);
+
+        QString phpPath = m_app->database()->getSetting("php_interpreter_path", "");
+        QString perlPath = m_app->database()->getSetting("perl_interpreter_path", "");
+        m_phpPathEdit->setText(QDir::toNativeSeparators(phpPath));
+        m_perlPathEdit->setText(QDir::toNativeSeparators(perlPath));
     }
 
     // OAuth情報ロード
@@ -113,12 +151,15 @@ void SettingsWidget::loadCurrentSettings()
     m_broadcasterIdEdit->setText(broadcasterId);
 
     // カスタム設定がある場合はチェックボックスをONにし、無ければOFF（非表示）にする
-    if (!clientId.isEmpty()) {
+    // ※ グローバル（デフォルト）の認証情報と同一である場合は、カスタム設定としては扱わない
+    if (!clientId.isEmpty() && clientId != TWITCH_GLOBAL_CLIENT_ID) {
         m_useCustomCredentialsCb->setChecked(true);
         m_customCredentialsGroup->setVisible(true);
     } else {
         m_useCustomCredentialsCb->setChecked(false);
         m_customCredentialsGroup->setVisible(false);
+        m_clientIdEdit->clear();
+        m_clientSecretEdit->clear();
     }
 }
 
@@ -177,4 +218,33 @@ void SettingsWidget::onAuthClicked()
     
     // 認可フロー起動
     m_app->twitchAuth()->startAuthFlow();
+}
+
+void SettingsWidget::onBrowsePhpPath()
+{
+    QString path = QFileDialog::getOpenFileName(this, "PHP実行ファイル (php.exe) を選択", "", "Executables (*.exe);;All Files (*)");
+    if (!path.isEmpty()) {
+        m_phpPathEdit->setText(QDir::toNativeSeparators(path));
+    }
+}
+
+void SettingsWidget::onBrowsePerlPath()
+{
+    QString path = QFileDialog::getOpenFileName(this, "Perl実行ファイル (perl.exe) を選択", "", "Executables (*.exe);;All Files (*)");
+    if (!path.isEmpty()) {
+        m_perlPathEdit->setText(QDir::toNativeSeparators(path));
+    }
+}
+
+void SettingsWidget::onSaveScriptClicked()
+{
+    if (!m_app->database()) return;
+
+    QString phpPath = m_phpPathEdit->text().trimmed();
+    QString perlPath = m_perlPathEdit->text().trimmed();
+
+    m_app->database()->saveSetting("php_interpreter_path", phpPath);
+    m_app->database()->saveSetting("perl_interpreter_path", perlPath);
+
+    QMessageBox::information(this, "成功", "外部スクリプトのパス設定を保存しました。");
 }

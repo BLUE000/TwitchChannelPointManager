@@ -53,7 +53,7 @@ bool Application::initialize(const QString& dbPath, const QString& configPath)
     m_fileManager = std::make_unique<FileManager>(28081, this);
 
     // 7. OBS連携 WebSocket & HTTP サーバーの初期化
-    m_overlayServer = std::make_unique<OverlayServer>(m_fileManager.get(), this);
+    m_overlayServer = std::make_unique<OverlayServer>(m_fileManager.get(), m_database.get(), this);
 
     // 8. DBから設定ポート等を読み込んで各種サーバーを起動
     loadSettingsAndBootOverlay();
@@ -79,6 +79,15 @@ bool Application::initialize(const QString& dbPath, const QString& configPath)
 
     m_isInitialized = true;
     LOG_INFO("Core Application system successfully initialized and online.");
+
+    // 11. すでに認可情報がある場合は、起動時にEventSubへ自動接続する
+    QString accessToken = m_config->loadSecureString("twitch_access_token", secretKey);
+    QString broadcasterId = m_config->get("twitch_broadcaster_id").toString();
+    if (!accessToken.isEmpty() && !broadcasterId.isEmpty()) {
+        LOG_INFO("Saved Twitch credentials found at startup. Automatically establishing EventSub WebSocket connection.");
+        m_twitchEventSub->connectToServer(accessToken, clientId, broadcasterId);
+    }
+
     return true;
 }
 

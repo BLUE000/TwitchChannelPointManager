@@ -26,6 +26,11 @@ private:
     QLineEdit* m_broadcasterIdEdit;
     QPushButton* m_authBtn;
 
+    // 外部スクリプト設定用
+    QLineEdit* m_phpPathEdit;
+    QLineEdit* m_perlPathEdit;
+    QPushButton* m_saveScriptBtn;
+
 public:
     explicit SettingsWidget(Application* app, QWidget* parent = nullptr);
     ~SettingsWidget() = default;
@@ -35,6 +40,9 @@ public:
 private slots:
     void onSavePortsClicked();
     void onAuthClicked();
+    void onBrowsePhpPath();
+    void onBrowsePerlPath();
+    void onSaveScriptClicked();
 
 private:
     void setupUi();

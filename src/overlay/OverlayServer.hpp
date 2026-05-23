@@ -9,6 +9,7 @@
 #include "../reward/QueueManager.hpp"
 
 class FileManager;
+class Database;
 
 class OverlayServer : public QObject {
     Q_OBJECT
@@ -16,13 +17,14 @@ private:
     QWebSocketServer* m_wsServer;
     QHttpServer* m_httpServer;
     FileManager* m_fileManager;
+    Database* m_database;
     QList<QWebSocket*> m_clients;
 
     int m_wsPort;
     int m_httpPort;
 
 public:
-    explicit OverlayServer(FileManager* fileManager, QObject* parent = nullptr);
+    explicit OverlayServer(FileManager* fileManager, Database* database, QObject* parent = nullptr);
     ~OverlayServer();
 
     // サーバーの起動

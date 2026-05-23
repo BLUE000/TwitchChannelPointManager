@@ -117,6 +117,7 @@ void RewardEditorWidget::setupUi()
     m_effectTypeCombo->addItem("画像のみ (image)", "image");
     m_effectTypeCombo->addItem("動画（透過WebMなど） (video)", "video");
     m_effectTypeCombo->addItem("音響効果のみ (sound)", "sound");
+    m_effectTypeCombo->addItem("外部スクリプト実行 (script)", "script");
     effectLayout->addRow("演出の種類:", m_effectTypeCombo);
     connect(m_effectTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RewardEditorWidget::onEffectTypeChanged);
 
@@ -126,7 +127,8 @@ void RewardEditorWidget::setupUi()
     m_imageSelectBtn = new QPushButton("参照...", this);
     imgLayout->addWidget(m_imagePathEdit);
     imgLayout->addWidget(m_imageSelectBtn);
-    effectLayout->addRow("画像/動画ファイル:", imgLayout);
+    m_imagePathLabel = new QLabel("画像/動画ファイル:", this);
+    effectLayout->addRow(m_imagePathLabel, imgLayout);
     connect(m_imageSelectBtn, &QPushButton::clicked, this, &RewardEditorWidget::selectImagePath);
 
     auto* audLayout = new QHBoxLayout();
@@ -322,7 +324,10 @@ void RewardEditorWidget::onSaveClicked()
     for (int i = 0; i < m_editingEffects.size(); ++i) {
         const auto& eff = m_editingEffects[i];
         if (eff.filePath.isEmpty() && eff.audioPath.isEmpty() && eff.text.isEmpty()) {
-            QMessageBox::warning(this, "演出効果未設定", QString("演出 %1 の画像/動画、効果音、または表示文字列のいずれかを入力してください。").arg(i + 1));
+            QString msg = (eff.type == "script") 
+                ? QString("演出 %1 のスクリプトファイルを選択してください。").arg(i + 1)
+                : QString("演出 %1 の画像/動画、効果音、または表示文字列のいずれかを入力してください。").arg(i + 1);
+            QMessageBox::warning(this, "演出効果未設定", msg);
             return;
         }
     }
@@ -383,9 +388,15 @@ void RewardEditorWidget::onNewClicked()
 
 void RewardEditorWidget::selectImagePath()
 {
-    QString path = QFileDialog::getOpenFileName(this, "画像または動画ファイルを選択", "", "Media Files (*.png *.jpg *.jpeg *.gif *.webm *.mp4)");
+    QString type = m_effectTypeCombo->currentData().toString();
+    QString path;
+    if (type == "script") {
+        path = QFileDialog::getOpenFileName(this, "スクリプトファイルを選択", "", "Script Files (*.pl *.cgi *.php);;All Files (*)");
+    } else {
+        path = QFileDialog::getOpenFileName(this, "画像または動画ファイルを選択", "", "Media Files (*.png *.jpg *.jpeg *.gif *.webm *.mp4)");
+    }
     if (!path.isEmpty()) {
-        m_imagePathEdit->setText(path);
+        m_imagePathEdit->setText(QDir::toNativeSeparators(path));
     }
 }
 
@@ -597,6 +608,7 @@ void RewardEditorWidget::updateEffectSelectorCombo()
         QString typeLabel = "画像";
         if (eff.type == "video") typeLabel = "動画";
         else if (eff.type == "sound") typeLabel = "音響";
+        else if (eff.type == "script") typeLabel = "スクリプト";
         
         m_effectSelectorCombo->addItem(QString("演出 %1: [%2]").arg(i + 1).arg(typeLabel));
     }
@@ -639,13 +651,26 @@ void RewardEditorWidget::onEffectTypeChanged(int index)
     Q_UNUSED(index);
     QString type = m_effectTypeCombo->currentData().toString();
     bool isSoundOnly = (type == "sound");
+    bool isScript = (type == "script");
+
+    // ラベルの動的切り替え
+    if (isScript) {
+        m_imagePathLabel->setText("スクリプトファイル (*.pl, *.cgi, *.php):");
+    } else {
+        m_imagePathLabel->setText("画像/動画ファイル:");
+    }
 
     m_imagePathEdit->setEnabled(!isSoundOnly);
     m_imageSelectBtn->setEnabled(!isSoundOnly);
-    m_scaleSpin->setEnabled(!isSoundOnly);
-    m_positionPresetCombo->setEnabled(!isSoundOnly);
-    m_positionXSpin->setEnabled(!isSoundOnly && m_positionPresetCombo->currentData().toString() == "custom");
-    m_positionYSpin->setEnabled(!isSoundOnly && m_positionPresetCombo->currentData().toString() == "custom");
+    
+    // スクリプトまたは音響のみの場合は画面表示関連（スケール、位置、テキスト）を無効化
+    bool isVisual = (!isSoundOnly && !isScript);
+    m_scaleSpin->setEnabled(isVisual);
+    m_positionPresetCombo->setEnabled(isVisual);
+    m_positionXSpin->setEnabled(isVisual && m_positionPresetCombo->currentData().toString() == "custom");
+    m_positionYSpin->setEnabled(isVisual && m_positionPresetCombo->currentData().toString() == "custom");
+    m_textEdit->setEnabled(isVisual);
+    m_audioPathEdit->setEnabled(!isScript); // スクリプト以外はオーディオ設定を許可
 
     if (isSoundOnly) {
         m_imagePathEdit->clear();
