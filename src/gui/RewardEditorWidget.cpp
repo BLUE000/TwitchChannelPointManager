@@ -116,10 +116,10 @@ void RewardEditorWidget::setupUi()
     selectorLayout->addWidget(m_deleteEffectBtn);
     effectLayout->addRow("編集対象の演出:", selectorLayout);
 
-    m_isExternalScriptOnlyCb = new QCheckBox("設定を全て外部スクリプトで実行", this);
-    m_isExternalScriptOnlyCb->setStyleSheet("font-weight: bold; margin-bottom: 5px;");
-    effectLayout->addRow(m_isExternalScriptOnlyCb);
-    connect(m_isExternalScriptOnlyCb, &QCheckBox::toggled, this, &RewardEditorWidget::onExternalScriptOnlyToggled);
+    m_isCustomHtmlOnlyCb = new QCheckBox("カスタムHTML演出として実行", this);
+    m_isCustomHtmlOnlyCb->setStyleSheet("font-weight: bold; margin-bottom: 5px;");
+    effectLayout->addRow(m_isCustomHtmlOnlyCb);
+    connect(m_isCustomHtmlOnlyCb, &QCheckBox::toggled, this, &RewardEditorWidget::onCustomHtmlOnlyToggled);
 
     // --- 通常演出設定コンテナ ---
     m_normalEffectConfigWidget = new QWidget(this);
@@ -130,7 +130,6 @@ void RewardEditorWidget::setupUi()
     m_effectTypeCombo->addItem("画像のみ (image)", "image");
     m_effectTypeCombo->addItem("動画（透過WebMなど） (video)", "video");
     m_effectTypeCombo->addItem("音響効果のみ (sound)", "sound");
-    m_effectTypeCombo->addItem("外部スクリプト実行 (script)", "script");
     normalLayout->addRow("演出の種類:", m_effectTypeCombo);
     connect(m_effectTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RewardEditorWidget::onEffectTypeChanged);
 
@@ -200,16 +199,16 @@ void RewardEditorWidget::setupUi()
 
     effectLayout->addRow(m_normalEffectConfigWidget);
 
-    // --- 外部スクリプト専用設定コンテナ ---
-    m_externalScriptConfigWidget = new QWidget(this);
-    auto* extLayout = new QFormLayout(m_externalScriptConfigWidget);
+    // --- カスタムHTML専用設定コンテナ ---
+    m_customHtmlConfigWidget = new QWidget(this);
+    auto* extLayout = new QFormLayout(m_customHtmlConfigWidget);
     extLayout->setContentsMargins(0, 0, 0, 0);
 
     // HTMLファイルパス（読み取り専用・コピー可）
     auto* htmlLayout = new QHBoxLayout();
     m_htmlPathEdit = new QLineEdit(this);
     m_htmlPathEdit->setReadOnly(true);
-    m_htmlPathEdit->setPlaceholderText("ドキュメントルート(external/)配下のHTMLファイルを選択してください");
+    m_htmlPathEdit->setPlaceholderText("ドキュメントルート(custom_html/)配下のHTMLファイルを選択してください");
     m_htmlSelectBtn = new QPushButton("参照...", this);
     auto* htmlClearBtn = new QPushButton("クリア", this);
     htmlClearBtn->setStyleSheet("padding: 4px;");
@@ -220,39 +219,9 @@ void RewardEditorWidget::setupUi()
     connect(m_htmlSelectBtn, &QPushButton::clicked, this, &RewardEditorWidget::selectHtmlPath);
     connect(htmlClearBtn, &QPushButton::clicked, [this]() { m_htmlPathEdit->clear(); });
 
-    // Perlスクリプトファイルパス（読み取り専用・コピー可）
-    auto* perlLayout = new QHBoxLayout();
-    m_perlScriptPathEdit = new QLineEdit(this);
-    m_perlScriptPathEdit->setReadOnly(true);
-    m_perlScriptPathEdit->setPlaceholderText("ドキュメントルート(external/)配下のPerlスクリプトを選択してください");
-    m_perlScriptSelectBtn = new QPushButton("参照...", this);
-    auto* perlClearBtn = new QPushButton("クリア", this);
-    perlClearBtn->setStyleSheet("padding: 4px;");
-    perlLayout->addWidget(m_perlScriptPathEdit, 1);
-    perlLayout->addWidget(m_perlScriptSelectBtn);
-    perlLayout->addWidget(perlClearBtn);
-    extLayout->addRow("Perl 連携スクリプト:", perlLayout);
-    connect(m_perlScriptSelectBtn, &QPushButton::clicked, this, &RewardEditorWidget::selectPerlScriptPath);
-    connect(perlClearBtn, &QPushButton::clicked, [this]() { m_perlScriptPathEdit->clear(); });
+    effectLayout->addRow(m_customHtmlConfigWidget);
 
-    // PHPスクリプトファイルパス（読み取り専用・コピー可）
-    auto* phpLayout = new QHBoxLayout();
-    m_phpScriptPathEdit = new QLineEdit(this);
-    m_phpScriptPathEdit->setReadOnly(true);
-    m_phpScriptPathEdit->setPlaceholderText("ドキュメントルート(external/)配下のPHPスクリプトを選択してください");
-    m_phpScriptSelectBtn = new QPushButton("参照...", this);
-    auto* phpClearBtn = new QPushButton("クリア", this);
-    phpClearBtn->setStyleSheet("padding: 4px;");
-    phpLayout->addWidget(m_phpScriptPathEdit, 1);
-    phpLayout->addWidget(m_phpScriptSelectBtn);
-    phpLayout->addWidget(phpClearBtn);
-    extLayout->addRow("PHP 連携スクリプト:", phpLayout);
-    connect(m_phpScriptSelectBtn, &QPushButton::clicked, this, &RewardEditorWidget::selectPhpScriptPath);
-    connect(phpClearBtn, &QPushButton::clicked, [this]() { m_phpScriptPathEdit->clear(); });
-
-    effectLayout->addRow(m_externalScriptConfigWidget);
-
-    m_externalScriptConfigWidget->setVisible(false);
+    m_customHtmlConfigWidget->setVisible(false);
 
     // プリセット選択時に中心座標を自動更新（1920x1080 基準）
     connect(m_positionPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -290,16 +259,8 @@ void RewardEditorWidget::setupUi()
 
     mainLayout->addLayout(rightLayout);
 
-    // 初期状態でのシステム設定チェック（外部スクリプトチェックボックスの表示・非表示）
-    bool scriptEnabled = false;
-    if (m_app->database()) {
-        scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
-    }
-    m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
-    if (!scriptEnabled) {
-        m_isExternalScriptOnlyCb->setChecked(false);
-        onExternalScriptOnlyToggled(false);
-    }
+    // 初期状態でのシステム設定チェック（カスタムHTMLチェックボックスは常に表示）
+    m_isCustomHtmlOnlyCb->setVisible(true);
 }
 
 void RewardEditorWidget::reloadRewardsList()
@@ -338,16 +299,8 @@ void RewardEditorWidget::reloadRewardsList()
         }
     }
 
-    // タブ切り替え時のシステム設定チェック（外部スクリプトチェックボックスの表示・非表示）
-    bool scriptEnabled = false;
-    if (m_app->database()) {
-        scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
-    }
-    m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
-    if (!scriptEnabled) {
-        m_isExternalScriptOnlyCb->setChecked(false);
-        onExternalScriptOnlyToggled(false);
-    }
+    // タブ切り替え時のシステム設定チェック（カスタムHTMLチェックボックスは常に表示）
+    m_isCustomHtmlOnlyCb->setVisible(true);
 }
 
 void RewardEditorWidget::onRewardSelected(QListWidgetItem* item)
@@ -475,30 +428,17 @@ void RewardEditorWidget::onNewClicked()
     m_textEdit->clear();
 
     m_htmlPathEdit->clear();
-    m_perlScriptPathEdit->clear();
-    m_phpScriptPathEdit->clear();
 
-    m_isExternalScriptOnlyCb->setChecked(false);
-    onExternalScriptOnlyToggled(false);
-
-    bool scriptEnabled = false;
-    if (m_app->database()) {
-        scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
-    }
-    m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
+    m_isCustomHtmlOnlyCb->setChecked(false);
+    onCustomHtmlOnlyToggled(false);
+    m_isCustomHtmlOnlyCb->setVisible(true);
 
     m_testButton->setEnabled(false);
 }
 
 void RewardEditorWidget::selectImagePath()
 {
-    QString type = m_effectTypeCombo->currentData().toString();
-    QString path;
-    if (type == "script") {
-        path = QFileDialog::getOpenFileName(this, "スクリプトファイルを選択", "", "Script Files (*.pl *.cgi *.php);;All Files (*)");
-    } else {
-        path = QFileDialog::getOpenFileName(this, "画像または動画ファイルを選択", "", "Media Files (*.png *.jpg *.jpeg *.gif *.webm *.mp4)");
-    }
+    QString path = QFileDialog::getOpenFileName(this, "画像または動画ファイルを選択", "", "Media Files (*.png *.jpg *.jpeg *.gif *.webm *.mp4)");
     if (!path.isEmpty()) {
         m_imagePathEdit->setText(QDir::toNativeSeparators(path));
     }
@@ -653,12 +593,10 @@ void RewardEditorWidget::saveCurrentEffectToBuffer()
 {
     if (m_currentEffectIndex >= 0 && m_currentEffectIndex < m_editingEffects.size()) {
         Effect& eff = m_editingEffects[m_currentEffectIndex];
-        eff.isExternalScriptOnly = m_isExternalScriptOnlyCb->isChecked();
-        if (eff.isExternalScriptOnly) {
-            eff.type = "script_full";
+        eff.isCustomHtmlOnly = m_isCustomHtmlOnlyCb->isChecked();
+        if (eff.isCustomHtmlOnly) {
+            eff.type = "custom_html";
             eff.htmlPath = m_htmlPathEdit->text().trimmed();
-            eff.perlPath = m_perlScriptPathEdit->text().trimmed();
-            eff.phpPath = m_phpScriptPathEdit->text().trimmed();
             // 通常の項目をクリアするが、表示・演出時間は非同期の完了同期のために保持する
             eff.filePath = "";
             eff.audioPath = "";
@@ -685,8 +623,6 @@ void RewardEditorWidget::saveCurrentEffectToBuffer()
             eff.position.offsetY = m_positionYSpin->value();
             // 外部スクリプトのパスはクリア
             eff.htmlPath = "";
-            eff.perlPath = "";
-            eff.phpPath = "";
         }
     }
 }
@@ -697,25 +633,11 @@ void RewardEditorWidget::loadEffectFromBuffer(int index)
         m_currentEffectIndex = index;
         const Effect& eff = m_editingEffects[index];
         
-        // 外部スクリプト連携機能がシステム設定で有効かどうかをロード
-        bool scriptEnabled = false;
-        if (m_app->database()) {
-            scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
-        }
-        
-        m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
-        
-        if (!scriptEnabled) {
-            m_isExternalScriptOnlyCb->setChecked(false);
-            onExternalScriptOnlyToggled(false);
-        } else {
-            m_isExternalScriptOnlyCb->setChecked(eff.isExternalScriptOnly);
-            onExternalScriptOnlyToggled(eff.isExternalScriptOnly);
-        }
+        m_isCustomHtmlOnlyCb->setVisible(true);
+        m_isCustomHtmlOnlyCb->setChecked(eff.isCustomHtmlOnly);
+        onCustomHtmlOnlyToggled(eff.isCustomHtmlOnly);
         
         m_htmlPathEdit->setText(eff.htmlPath);
-        m_perlScriptPathEdit->setText(eff.perlPath);
-        m_phpScriptPathEdit->setText(eff.phpPath);
         
         int typeIndex = m_effectTypeCombo->findData(eff.type);
         if (typeIndex >= 0) m_effectTypeCombo->setCurrentIndex(typeIndex);
@@ -751,12 +673,11 @@ void RewardEditorWidget::updateEffectSelectorCombo()
     for (int i = 0; i < m_editingEffects.size(); ++i) {
         const Effect& eff = m_editingEffects[i];
         QString typeLabel = "画像";
-        if (eff.isExternalScriptOnly) {
-            typeLabel = "外部スクリプト";
+        if (eff.isCustomHtmlOnly) {
+            typeLabel = "カスタムHTML";
         } else {
             if (eff.type == "video") typeLabel = "動画";
             else if (eff.type == "sound") typeLabel = "音響";
-            else if (eff.type == "script") typeLabel = "スクリプト";
         }
         
         m_effectSelectorCombo->addItem(QString("演出 %1: [%2]").arg(i + 1).arg(typeLabel));
@@ -800,26 +721,20 @@ void RewardEditorWidget::onEffectTypeChanged(int index)
     Q_UNUSED(index);
     QString type = m_effectTypeCombo->currentData().toString();
     bool isSoundOnly = (type == "sound");
-    bool isScript = (type == "script");
 
-    // ラベルの動的切り替え
-    if (isScript) {
-        m_imagePathLabel->setText("スクリプトファイル (*.pl, *.cgi, *.php):");
-    } else {
-        m_imagePathLabel->setText("画像/動画ファイル:");
-    }
+    m_imagePathLabel->setText("画像/動画ファイル:");
 
     m_imagePathEdit->setEnabled(!isSoundOnly);
     m_imageSelectBtn->setEnabled(!isSoundOnly);
     
-    // スクリプトまたは音響のみの場合は画面表示関連（スケール、位置、テキスト）を無効化
-    bool isVisual = (!isSoundOnly && !isScript);
+    // 音響のみの場合は画面表示関連（スケール、位置、テキスト）を無効化
+    bool isVisual = (!isSoundOnly);
     m_scaleSpin->setEnabled(isVisual);
     m_positionPresetCombo->setEnabled(isVisual);
     m_positionXSpin->setEnabled(isVisual && m_positionPresetCombo->currentData().toString() == "custom");
     m_positionYSpin->setEnabled(isVisual && m_positionPresetCombo->currentData().toString() == "custom");
     m_textEdit->setEnabled(isVisual);
-    m_audioPathEdit->setEnabled(!isScript); // スクリプト以外はオーディオ設定を許可
+    m_audioPathEdit->setEnabled(true);
 
     if (isSoundOnly) {
         m_imagePathEdit->clear();
@@ -844,113 +759,45 @@ void RewardEditorWidget::selectRewardAndEffect(const QString& rewardId, int effe
     }
 }
 
-void RewardEditorWidget::onExternalScriptOnlyToggled(bool checked)
+void RewardEditorWidget::onCustomHtmlOnlyToggled(bool checked)
 {
     m_normalEffectConfigWidget->setVisible(!checked);
-    m_externalScriptConfigWidget->setVisible(checked);
+    m_customHtmlConfigWidget->setVisible(checked);
 }
 
 void RewardEditorWidget::selectHtmlPath()
 {
     QString appDir = QCoreApplication::applicationDirPath();
-    QString externalDir = QDir::toNativeSeparators(appDir + "/external");
+    QString customHtmlDir = QDir::toNativeSeparators(appDir + "/custom_html");
     
     // フォルダがなければ自動生成
-    QDir().mkpath(externalDir);
+    QDir().mkpath(customHtmlDir);
     
     QString path = QFileDialog::getOpenFileName(
         this, 
-        "HTML演出ファイルを選択 (external フォルダ配下)", 
-        externalDir, 
+        "HTML演出ファイルを選択 (custom_html フォルダ配下)", 
+        customHtmlDir, 
         "HTML Files (*.html);;All Files (*)"
     );
     
     if (path.isEmpty()) return;
     
     path = QDir::cleanPath(path);
-    QString cleanExtDir = QDir::cleanPath(externalDir);
+    QString cleanHtmlDir = QDir::cleanPath(customHtmlDir);
     
-    if (!path.startsWith(cleanExtDir, Qt::CaseInsensitive)) {
+    if (!path.startsWith(cleanHtmlDir, Qt::CaseInsensitive)) {
         QMessageBox::warning(
             this, 
             "配置場所エラー", 
-            "アセットファイルは、アプリケーション実行フォルダ内の「external」フォルダ配下に配置する必要があります。\n"
-            "手動でファイルを「external」フォルダに配置してから、再度選択してください。"
+            "アセットファイルは、アプリケーション実行フォルダ内の「custom_html」フォルダ配下に配置する必要があります。\n"
+            "手動でファイルを「custom_html」フォルダに配置してから、再度選択してください。"
         );
         return;
     }
     
     // 相対パスを取得
-    QDir dir(cleanExtDir);
-    QString relativePath = "external/" + dir.relativeFilePath(path);
+    QDir dir(cleanHtmlDir);
+    QString relativePath = "custom_html/" + dir.relativeFilePath(path);
     m_htmlPathEdit->setText(QDir::toNativeSeparators(relativePath));
-}
-
-void RewardEditorWidget::selectPerlScriptPath()
-{
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString externalDir = QDir::toNativeSeparators(appDir + "/external");
-    
-    QDir().mkpath(externalDir);
-    
-    QString path = QFileDialog::getOpenFileName(
-        this, 
-        "Perlスクリプトを選択 (external フォルダ配下)", 
-        externalDir, 
-        "Perl Scripts (*.pl *.cgi);;All Files (*)"
-    );
-    
-    if (path.isEmpty()) return;
-    
-    path = QDir::cleanPath(path);
-    QString cleanExtDir = QDir::cleanPath(externalDir);
-    
-    if (!path.startsWith(cleanExtDir, Qt::CaseInsensitive)) {
-        QMessageBox::warning(
-            this, 
-            "配置場所エラー", 
-            "スクリプトファイルは、アプリケーション実行フォルダ内の「external」フォルダ配下に配置する必要があります。\n"
-            "手動でファイルを「external」フォルダに配置してから、再度選択してください。"
-        );
-        return;
-    }
-    
-    QDir dir(cleanExtDir);
-    QString relativePath = "external/" + dir.relativeFilePath(path);
-    m_perlScriptPathEdit->setText(QDir::toNativeSeparators(relativePath));
-}
-
-void RewardEditorWidget::selectPhpScriptPath()
-{
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString externalDir = QDir::toNativeSeparators(appDir + "/external");
-    
-    QDir().mkpath(externalDir);
-    
-    QString path = QFileDialog::getOpenFileName(
-        this, 
-        "PHPスクリプトを選択 (external フォルダ配下)", 
-        externalDir, 
-        "PHP Scripts (*.php);;All Files (*)"
-    );
-    
-    if (path.isEmpty()) return;
-    
-    path = QDir::cleanPath(path);
-    QString cleanExtDir = QDir::cleanPath(externalDir);
-    
-    if (!path.startsWith(cleanExtDir, Qt::CaseInsensitive)) {
-        QMessageBox::warning(
-            this, 
-            "配置場所エラー", 
-            "スクリプトファイルは、アプリケーション実行フォルダ内の「external」フォルダ配下に配置する必要があります。\n"
-            "手動でファイルを「external」フォルダに配置してから、再度選択してください。"
-        );
-        return;
-    }
-    
-    QDir dir(cleanExtDir);
-    QString relativePath = "external/" + dir.relativeFilePath(path);
-    m_phpScriptPathEdit->setText(QDir::toNativeSeparators(relativePath));
 }
 

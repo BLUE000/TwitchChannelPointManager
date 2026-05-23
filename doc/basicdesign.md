@@ -108,6 +108,15 @@ src/
     └── NetworkUtils               # ネットワーク補助
 ```
 
+カスタムHTML演出・ランキング用フォルダ（アプリ実行ファイルと同階層）:
+```text
+custom_html/      # 演出用HTMLのドキュメントルート
+  └─ README.txt
+ranking/          # 統計ランキング用カスタム表示のドキュメントルート
+  ├─ README.txt
+  └─ default.html
+```
+
 ## 3. データ構造
 
 ### 3.1 報酬データ (Reward)
@@ -140,6 +149,8 @@ src/
 | volume | Integer | 音量 (0-100) |
 | text | String | テキスト(オプション) |
 | probability | Integer | 確率 (ランダムモード時) |
+| isCustomHtmlOnly | Boolean | カスタムHTML演出のみ（有効時は通常演出設定の代わりに以下ファイルを使用） |
+| htmlPath | String | HTML演出ファイルパス（`custom_html/` 内の相対パス。OBS iframeで全画面表示） |
 
 ### 3.3 キューアイテム (QueueItem)
 
@@ -237,6 +248,19 @@ src/
 }
 ```
 
+#### カスタムHTML演出メッセージ（カスタムHTML演出モード）
+
+```json
+{
+  "type": "show_custom_html",
+  "url": "http://localhost:28081/assets/{uuid}.html",
+  "duration": 10,
+  "queueId": "queue_12345"
+}
+```
+
+説明：カスタムHTML演出モード時に使用。OBSブラウザソース側のiframeに指定URLのHTMLを全画面表示する。
+
 #### パニックボタン
 
 ```json
@@ -259,6 +283,20 @@ src/
 
 * ベースURL: `http://localhost:28081`
 * アセット配信: `/assets/{filename}`
+* OBSオーバーレイ: `/overlay`
+* ランキングデフォルト表示: `/ranking`
+* ランキングカスタムファイル: `/ranking/{filename}`
+* ランキングJSON API: `/api/ranking?period=0|1|2|3`
+
+#### エンドポイント一覧
+
+| パス | 説明 |
+| :--- | :--- |
+| `/overlay` | OBS演出用WebSocket連携HTMLページ（変更なし） |
+| `/assets/{filename}` | アセットファイル配信 |
+| `/ranking` | `ranking/default.html` を配信（デフォルトランキング表示） |
+| `/ranking/{filename}` | `ranking/` フォルダ内ファイルを配信。`.html`/`.htm` などの静的ファイルを配信（`{{HTTP_PORT}}` 置換あり）。パストラバーサル防止済み。 |
+| `/api/ranking?period=0\|1\|2\|3` | ランキングJSONデータ API（変更なし） |
 
 #### リクエスト例
 
@@ -411,6 +449,10 @@ public:
 │ │                                  │ │ ステータス: ☑ 報酬演出の有効化 │ │
 │ │                                  │ ├────────────────────────────────┤ │
 │ │                                  │ │ 演出効果（エフェクト）設定     │ │
+│ │                                  │ │ ☐ カスタムHTML演出として実行   │ │
+│ │                                  │ │   ▼チェック時のみ表示          │ │
+│ │                                  │ │   HTML: [path/to/file][参照]   │ │
+│ │                                  │ │   ▼未チェック時（通常設定）    │ │
 │ │                                  │ │ 編集対象の演出:                 │ │
 │ │                                  │ │ [演出 1: [画像]  ▼] [+演出追加] [❌削除]│
 │ │                                  │ │ 演出の種類: [画像のみ (image) ▼] │

@@ -24,21 +24,18 @@ private:
     int m_wsPort;
     int m_httpPort;
 
-    // 外部スクリプトプロセス管理リスト
-    QList<QProcess*> m_runningScriptProcesses;
-
-    // スクリプト実行タイムアウト秒数（php.ini の max_execution_time デフォルト値に準拠）
-    static constexpr int SCRIPT_TIMEOUT_SEC = 30;
-
 public:
     explicit OverlayServer(FileManager* fileManager, Database* database, QObject* parent = nullptr);
     ~OverlayServer();
 
     // サーバーの起動
-    bool start(int wsPort = 28080, int httpPort = 28081);
+    bool start(int wsPort, int httpPort);
     
     // サーバーの停止
     void stop();
+
+    // OBSへ新しい演出要求を一斉配信
+    void sendEffect(const QueueItem& item, const Effect& effect);
 
 signals:
     // OBS側から演出完了を受け取った際に発火
@@ -48,15 +45,9 @@ signals:
     void clientCountChanged(int count);
 
 public slots:
-    // QueueManager から演出指示を受けて、接続中のすべてのOBSクライアントへWebSocket送信する
-    void sendEffect(const QueueItem& item, const Effect& effect);
-    
     // 演出の中止、キュー消去指示をOBSへ一斉配信
     void broadcastStopAll();
     void broadcastClearQueue();
-
-    // 実行中の外部スクリプトプロセスを全て強制終了（パニックボタン連携）
-    void killScriptProcesses();
 
 private slots:
     void onNewConnection();

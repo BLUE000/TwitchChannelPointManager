@@ -97,16 +97,7 @@ void OverlayServer::stop()
 
 void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
 {
-    if (effect.isExternalScriptOnly) {
-        if (m_database) {
-            QString enabled = m_database->getSetting("script_integration_enabled", "0");
-            if (enabled != "1") {
-                LOG_WARN("External script integration is disabled in system settings. Script execution skipped.");
-                emit effectFinished(item.queueId);
-                return;
-            }
-        }
-
+    if (effect.isCustomHtmlOnly) {
         // 1. HTML演出の配信（OBSへ送信）
         if (!effect.htmlPath.isEmpty()) {
             QString appDir = QCoreApplication::applicationDirPath();
@@ -129,154 +120,11 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
             }
         }
 
-        // 2. Perl スクリプトの実行
-        if (!effect.perlPath.isEmpty() && m_database) {
-            QString perlInterpreter = m_database->getSetting("perl_interpreter_path", "");
-            if (!perlInterpreter.isEmpty()) {
-                QString appDir = QCoreApplication::applicationDirPath();
-                QString absolutePerlPath = QDir::toNativeSeparators(appDir + "/" + effect.perlPath);
-
-                QStringList arguments;
-                arguments << absolutePerlPath << item.username << item.rewardId << item.timestamp.toString(Qt::ISODate);
-                LOG_INFO("Executing external Perl script (Full mode): " + absolutePerlPath);
-
-                auto* proc = new QProcess(this);
-                m_runningScriptProcesses.append(proc);
-                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                    this, [this, proc](int exitCode, QProcess::ExitStatus) {
-                        LOG_INFO(QString("External Perl script finished. Exit code: %1").arg(exitCode));
-                        m_runningScriptProcesses.removeAll(proc);
-                        proc->deleteLater();
-                    });
-                // 30秒タイムアウト監視（php.ini max_execution_time デフォルト値に準拠）
-                QTimer::singleShot(SCRIPT_TIMEOUT_SEC * 1000, this, [this, proc]() {
-                    if (proc->state() == QProcess::Running) {
-                        LOG_WARN(QString("External Perl script timed out after %1 sec. Force killing.").arg(SCRIPT_TIMEOUT_SEC));
-                        proc->kill();
-                    }
-                });
-                proc->start(perlInterpreter, arguments);
-                if (!proc->waitForStarted(3000)) {
-                    LOG_ERROR("Failed to start external Perl script process.");
-                    m_runningScriptProcesses.removeAll(proc);
-                    proc->deleteLater();
-                }
-            } else {
-                LOG_WARN("Perl interpreter is not configured. Skipping Perl script.");
-            }
-        }
-
-        // 3. PHP スクリプトの実行
-        if (!effect.phpPath.isEmpty() && m_database) {
-            QString phpInterpreter = m_database->getSetting("php_interpreter_path", "");
-            if (!phpInterpreter.isEmpty()) {
-                QString appDir = QCoreApplication::applicationDirPath();
-                QString absolutePhpPath = QDir::toNativeSeparators(appDir + "/" + effect.phpPath);
-
-                QStringList arguments;
-                arguments << absolutePhpPath << item.username << item.rewardId << item.timestamp.toString(Qt::ISODate);
-                LOG_INFO("Executing external PHP script (Full mode): " + absolutePhpPath);
-
-                auto* proc = new QProcess(this);
-                m_runningScriptProcesses.append(proc);
-                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                    this, [this, proc](int exitCode, QProcess::ExitStatus) {
-                        LOG_INFO(QString("External PHP script finished. Exit code: %1").arg(exitCode));
-                        m_runningScriptProcesses.removeAll(proc);
-                        proc->deleteLater();
-                    });
-                // 30秒タイムアウト監視（php.ini max_execution_time デフォルト値に準拠）
-                QTimer::singleShot(SCRIPT_TIMEOUT_SEC * 1000, this, [this, proc]() {
-                    if (proc->state() == QProcess::Running) {
-                        LOG_WARN(QString("External PHP script timed out after %1 sec. Force killing.").arg(SCRIPT_TIMEOUT_SEC));
-                        proc->kill();
-                    }
-                });
-                proc->start(phpInterpreter, arguments);
-                if (!proc->waitForStarted(3000)) {
-                    LOG_ERROR("Failed to start external PHP script process.");
-                    m_runningScriptProcesses.removeAll(proc);
-                    proc->deleteLater();
-                }
-            } else {
-                LOG_WARN("PHP interpreter is not configured. Skipping PHP script.");
-            }
-        }
-
         // 表示時間経過後に完了を通知し、演出順次キューの同期をとる
         int waitTime = qMax(1, effect.duration);
         QTimer::singleShot(waitTime * 1000, this, [this, item]() {
             emit effectFinished(item.queueId);
         });
-        return;
-    }
-
-    if (effect.type == "script") {
-        QString scriptPath = effect.filePath;
-        QString username = item.username;
-        QString rewardId = item.rewardId;
-        QString timestampStr = item.timestamp.toString(Qt::ISODate);
-
-        if (m_database) {
-            QString enabled = m_database->getSetting("script_integration_enabled", "0");
-            if (enabled != "1") {
-                LOG_WARN("External script integration is disabled in system settings. Script execution skipped. Please enable it in Settings.");
-                emit effectFinished(item.queueId);
-                return;
-            }
-
-            QString phpPath = m_database->getSetting("php_interpreter_path", "");
-            QString perlPath = m_database->getSetting("perl_interpreter_path", "");
-
-            QString interpreter;
-            QStringList arguments;
-
-            if (scriptPath.endsWith(".pl", Qt::CaseInsensitive) || scriptPath.endsWith(".cgi", Qt::CaseInsensitive)) {
-                if (perlPath.isEmpty()) {
-                    LOG_WARN("Perl interpreter path is not configured. Script execution skipped. Please set it in Settings.");
-                } else {
-                    interpreter = perlPath;
-                    arguments << scriptPath << username << rewardId << timestampStr;
-                }
-            } else if (scriptPath.endsWith(".php", Qt::CaseInsensitive)) {
-                if (phpPath.isEmpty()) {
-                    LOG_WARN("PHP interpreter path is not configured. Script execution skipped. Please set it in Settings.");
-                } else {
-                    interpreter = phpPath;
-                    arguments << scriptPath << username << rewardId << timestampStr;
-                }
-            }
-
-            if (!interpreter.isEmpty()) {
-                LOG_INFO(QString("Executing external script: %1 %2").arg(interpreter).arg(scriptPath));
-
-                auto* proc = new QProcess(this);
-                m_runningScriptProcesses.append(proc);
-                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                    this, [this, proc](int exitCode, QProcess::ExitStatus) {
-                        LOG_INFO(QString("External script finished. Exit code: %1").arg(exitCode));
-                        m_runningScriptProcesses.removeAll(proc);
-                        proc->deleteLater();
-                    });
-                // 30秒タイムアウト監視（php.ini max_execution_time デフォルト値に準拠）
-                QTimer::singleShot(SCRIPT_TIMEOUT_SEC * 1000, this, [this, proc]() {
-                    if (proc->state() == QProcess::Running) {
-                        LOG_WARN(QString("External script timed out after %1 sec. Force killing.").arg(SCRIPT_TIMEOUT_SEC));
-                        proc->kill();
-                    }
-                });
-                proc->start(interpreter, arguments);
-                if (!proc->waitForStarted(3000)) {
-                    LOG_ERROR("Failed to start external script process.");
-                    m_runningScriptProcesses.removeAll(proc);
-                    proc->deleteLater();
-                }
-            } else {
-                LOG_WARN("No interpreter matched for script: " + scriptPath);
-            }
-        }
-        
-        emit effectFinished(item.queueId);
         return;
     }
 
@@ -343,20 +191,6 @@ void OverlayServer::broadcastClearQueue()
     broadcastMessage(message);
 }
 
-void OverlayServer::killScriptProcesses()
-{
-    if (m_runningScriptProcesses.isEmpty()) {
-        LOG_INFO("Panic: No running script processes to kill.");
-        return;
-    }
-    LOG_WARN(QString("Panic: Force killing %1 running external script process(es).").arg(m_runningScriptProcesses.size()));
-    for (auto* proc : m_runningScriptProcesses) {
-        if (proc && proc->state() == QProcess::Running) {
-            proc->kill();
-        }
-    }
-    // finished シグナルで各プロセスが自動クリーンアップされる
-}
 
 void OverlayServer::onNewConnection()
 {
@@ -840,59 +674,6 @@ void OverlayServer::setupHttpRoutes()
             return response;
         }
 
-        // ──────────────────────────────────────────────
-        // PHP / Perl CGI: インタープリター実行して標準出力をレスポンスとして返す
-        // ──────────────────────────────────────────────
-        bool isPHP  = (ext == "php");
-        bool isPerl = (ext == "pl" || ext == "cgi");
-
-        if (isPHP || isPerl) {
-            // スクリプト連携機能の有効チェック
-            if (!m_database || m_database->getSetting("script_integration_enabled", "0") != "1") {
-                LOG_WARN("Ranking script access denied: script integration is disabled in system settings.");
-                return QHttpServerResponse(QHttpServerResponse::StatusCode::Forbidden);
-            }
-
-            QString interpreter;
-            if (isPHP) {
-                interpreter = m_database->getSetting("php_interpreter_path", "");
-                if (interpreter.isEmpty()) {
-                    LOG_WARN("Ranking PHP script access denied: PHP interpreter path is not configured.");
-                    return QHttpServerResponse(QHttpServerResponse::StatusCode::ServiceUnavailable);
-                }
-            } else {
-                interpreter = m_database->getSetting("perl_interpreter_path", "");
-                if (interpreter.isEmpty()) {
-                    LOG_WARN("Ranking Perl script access denied: Perl interpreter path is not configured.");
-                    return QHttpServerResponse(QHttpServerResponse::StatusCode::ServiceUnavailable);
-                }
-            }
-
-            LOG_INFO(QString("Executing ranking script via HTTP: %1").arg(requestedPath));
-
-            QProcess proc;
-            QStringList args;
-            args << requestedPath;
-            proc.start(interpreter, args);
-
-            if (!proc.waitForFinished(SCRIPT_TIMEOUT_SEC * 1000)) {
-                proc.kill();
-                LOG_WARN(QString("Ranking script timed out after %1 sec: %2").arg(SCRIPT_TIMEOUT_SEC).arg(requestedPath));
-                return QHttpServerResponse(QHttpServerResponse::StatusCode::ServiceUnavailable);
-            }
-
-            QByteArray output = proc.readAllStandardOutput();
-            if (output.isEmpty()) {
-                LOG_WARN("Ranking script produced no output: " + requestedPath);
-            }
-
-            QHttpServerResponse response("text/html; charset=utf-8", output);
-            QHttpHeaders headers;
-            headers.append("Access-Control-Allow-Origin", "*");
-            headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
-            response.setHeaders(headers);
-            return response;
-        }
 
         // 対応していない拡張子は404
         LOG_WARN(QString("Unsupported file type in ranking/: %1").arg(fileName));

@@ -288,15 +288,15 @@ target_link_libraries(TwitchChannelPointTest PRIVATE
 )
 
 # ==========================================
-# ビルド出力ディレクトリへの external フォルダ自動コピー/作成
+# ビルド出力ディレクトリへの custom_html フォルダ自動コピー/作成
 # ==========================================
 add_custom_command(
     TARGET TwitchChannelPointManager POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TwitchChannelPointManager>/external
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TwitchChannelPointManager>/custom_html
     COMMAND ${CMAKE_COMMAND} -E copy_if_different 
-            ${CMAKE_CURRENT_SOURCE_DIR}/external/README.txt 
-            $<TARGET_FILE_DIR:TwitchChannelPointManager>/external/README.txt
-    COMMENT "Creating external assets directory and copying README.txt..."
+            ${CMAKE_CURRENT_SOURCE_DIR}/custom_html/README.txt 
+            $<TARGET_FILE_DIR:TwitchChannelPointManager>/custom_html/README.txt
+    COMMENT "Creating custom_html assets directory and copying README.txt..."
 )
 
 # ==========================================
