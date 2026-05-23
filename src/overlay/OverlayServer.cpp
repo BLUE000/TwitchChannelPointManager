@@ -109,11 +109,19 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
             QStringList arguments;
 
             if (scriptPath.endsWith(".pl", Qt::CaseInsensitive) || scriptPath.endsWith(".cgi", Qt::CaseInsensitive)) {
-                interpreter = perlPath.isEmpty() ? "perl" : perlPath;
-                arguments << scriptPath << username << rewardId << timestampStr;
+                if (perlPath.isEmpty()) {
+                    LOG_WARN("Perl interpreter path is not configured. Script execution skipped. Please set it in Settings.");
+                } else {
+                    interpreter = perlPath;
+                    arguments << scriptPath << username << rewardId << timestampStr;
+                }
             } else if (scriptPath.endsWith(".php", Qt::CaseInsensitive)) {
-                interpreter = phpPath.isEmpty() ? "php" : phpPath;
-                arguments << scriptPath << username << rewardId << timestampStr;
+                if (phpPath.isEmpty()) {
+                    LOG_WARN("PHP interpreter path is not configured. Script execution skipped. Please set it in Settings.");
+                } else {
+                    interpreter = phpPath;
+                    arguments << scriptPath << username << rewardId << timestampStr;
+                }
             }
 
             if (!interpreter.isEmpty()) {
