@@ -289,6 +289,17 @@ void RewardEditorWidget::setupUi()
     rightLayout->addLayout(actLayout);
 
     mainLayout->addLayout(rightLayout);
+
+    // 初期状態でのシステム設定チェック（外部スクリプトチェックボックスの表示・非表示）
+    bool scriptEnabled = false;
+    if (m_app->database()) {
+        scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
+    }
+    m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
+    if (!scriptEnabled) {
+        m_isExternalScriptOnlyCb->setChecked(false);
+        onExternalScriptOnlyToggled(false);
+    }
 }
 
 void RewardEditorWidget::reloadRewardsList()
@@ -325,6 +336,17 @@ void RewardEditorWidget::reloadRewardsList()
             item->setData(Qt::UserRole + 3, r.cost);
             item->setForeground(QBrush(QColor("#FFFFFF")));
         }
+    }
+
+    // タブ切り替え時のシステム設定チェック（外部スクリプトチェックボックスの表示・非表示）
+    bool scriptEnabled = false;
+    if (m_app->database()) {
+        scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
+    }
+    m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
+    if (!scriptEnabled) {
+        m_isExternalScriptOnlyCb->setChecked(false);
+        onExternalScriptOnlyToggled(false);
     }
 }
 
@@ -451,6 +473,19 @@ void RewardEditorWidget::onNewClicked()
     m_audioPathEdit->clear();
     m_durationSpin->setValue(5);
     m_textEdit->clear();
+
+    m_htmlPathEdit->clear();
+    m_perlScriptPathEdit->clear();
+    m_phpScriptPathEdit->clear();
+
+    m_isExternalScriptOnlyCb->setChecked(false);
+    onExternalScriptOnlyToggled(false);
+
+    bool scriptEnabled = false;
+    if (m_app->database()) {
+        scriptEnabled = (m_app->database()->getSetting("script_integration_enabled", "0") == "1");
+    }
+    m_isExternalScriptOnlyCb->setVisible(scriptEnabled);
 
     m_testButton->setEnabled(false);
 }
