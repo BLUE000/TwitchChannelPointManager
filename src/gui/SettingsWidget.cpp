@@ -11,6 +11,7 @@
 #include <QCheckBox>
 #include <QFileDialog>
 #include <QDir>
+#include <QLabel>
 
 SettingsWidget::SettingsWidget(Application* app, QWidget* parent)
     : QWidget(parent)
@@ -46,13 +47,40 @@ void SettingsWidget::setupUi()
     mainLayout->addWidget(portGroup);
 
     // 1b. 外部スクリプト設定
-    auto* scriptGroup = new QGroupBox("外部スクリプト連携設定 (Perl/PHP)", this);
-    auto* scriptLayout = new QFormLayout(scriptGroup);
+    m_enableScriptIntegrationCb = new QCheckBox("外部スクリプト連携機能 (Perl/PHP) を有効にする", this);
+    m_enableScriptIntegrationCb->setStyleSheet("margin-top: 10px; font-weight: bold;");
+    mainLayout->addWidget(m_enableScriptIntegrationCb);
+
+    m_scriptGroup = new QGroupBox("外部スクリプト連携詳細設定", this);
+    auto* scriptLayout = new QFormLayout(m_scriptGroup);
+
+    // 免責・警告メッセージ
+    auto* disclaimerLabel = new QLabel(
+        "⚠️ <b>【重要】外部スクリプトに関する警告と免責事項</b><br/>"
+        "第三者が作成したスクリプトや中身のわからないプログラムを実行する場合は、十分に注意してください。<br/>"
+        "第三者作成のスクリプトによる<b>いかなる損害（データ消失・漏洩・システム破壊等）に関しても、本ツールの作者は一切の責任および保証を行えません。</b><br/>"
+        "必ず実行されるコードの安全性を一行ずつ手動で確認した上で、<b>すべて自己責任</b>においてご利用ください。",
+        this
+    );
+    disclaimerLabel->setWordWrap(true);
+    disclaimerLabel->setStyleSheet(R"(
+        QLabel {
+            color: #FF5555;
+            background-color: #2A1C1C;
+            border: 1px solid #5A2A2A;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 12px;
+            line-height: 1.4;
+            margin-bottom: 10px;
+        }
+    )");
+    scriptLayout->addRow(disclaimerLabel);
 
     // PHP パス
     auto* phpLayout = new QHBoxLayout();
     m_phpPathEdit = new QLineEdit(this);
-    m_phpPathEdit->setPlaceholderText("例: C:/php/php.exe (空欄の場合は PATH の php を使用)");
+    m_phpPathEdit->setPlaceholderText("例: C:/php/php.exe");
     auto* phpBrowseBtn = new QPushButton("参照...", this);
     phpLayout->addWidget(m_phpPathEdit);
     phpLayout->addWidget(phpBrowseBtn);
@@ -62,7 +90,7 @@ void SettingsWidget::setupUi()
     // Perl パス
     auto* perlLayout = new QHBoxLayout();
     m_perlPathEdit = new QLineEdit(this);
-    m_perlPathEdit->setPlaceholderText("例: C:/strawberry/perl/bin/perl.exe (空欄の場合は PATH の perl を使用)");
+    m_perlPathEdit->setPlaceholderText("例: C:/strawberry/perl/bin/perl.exe");
     auto* perlBrowseBtn = new QPushButton("参照...", this);
     perlLayout->addWidget(m_perlPathEdit);
     perlLayout->addWidget(perlBrowseBtn);
@@ -74,7 +102,10 @@ void SettingsWidget::setupUi()
     connect(m_saveScriptBtn, &QPushButton::clicked, this, &SettingsWidget::onSaveScriptClicked);
     scriptLayout->addRow(m_saveScriptBtn);
 
-    mainLayout->addWidget(scriptGroup);
+    m_scriptGroup->setVisible(false);
+    connect(m_enableScriptIntegrationCb, &QCheckBox::toggled, m_scriptGroup, &QGroupBox::setVisible);
+
+    mainLayout->addWidget(m_scriptGroup);
 
     // 2. Twitch OAuth連携の設定
     auto* twitchGroup = new QGroupBox("Twitch 連携認証設定", this);
@@ -127,6 +158,10 @@ void SettingsWidget::loadCurrentSettings()
         int httpPort = m_app->database()->getSetting("asset_server_port", "28081").toInt();
         m_wsPortSpin->setValue(wsPort);
         m_httpPortSpin->setValue(httpPort);
+
+        QString enabled = m_app->database()->getSetting("script_integration_enabled", "0");
+        m_enableScriptIntegrationCb->setChecked(enabled == "1");
+        m_scriptGroup->setVisible(enabled == "1");
 
         QString phpPath = m_app->database()->getSetting("php_interpreter_path", "");
         QString perlPath = m_app->database()->getSetting("perl_interpreter_path", "");
@@ -240,11 +275,13 @@ void SettingsWidget::onSaveScriptClicked()
 {
     if (!m_app->database()) return;
 
+    QString enabled = m_enableScriptIntegrationCb->isChecked() ? "1" : "0";
     QString phpPath = m_phpPathEdit->text().trimmed();
     QString perlPath = m_perlPathEdit->text().trimmed();
 
+    m_app->database()->saveSetting("script_integration_enabled", enabled);
     m_app->database()->saveSetting("php_interpreter_path", phpPath);
     m_app->database()->saveSetting("perl_interpreter_path", perlPath);
 
-    QMessageBox::information(this, "成功", "外部スクリプトのパス設定を保存しました。");
+    QMessageBox::information(this, "成功", "外部スクリプトの連携設定を保存しました。");
 }

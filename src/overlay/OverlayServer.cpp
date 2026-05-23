@@ -102,6 +102,13 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
         QString timestampStr = item.timestamp.toString(Qt::ISODate);
 
         if (m_database) {
+            QString enabled = m_database->getSetting("script_integration_enabled", "0");
+            if (enabled != "1") {
+                LOG_WARN("External script integration is disabled in system settings. Script execution skipped. Please enable it in Settings.");
+                emit effectFinished(item.queueId);
+                return;
+            }
+
             QString phpPath = m_database->getSetting("php_interpreter_path", "");
             QString perlPath = m_database->getSetting("perl_interpreter_path", "");
 

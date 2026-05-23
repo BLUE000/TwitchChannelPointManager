@@ -27,6 +27,8 @@ private:
     QPushButton* m_authBtn;
 
     // 外部スクリプト設定用
+    QCheckBox* m_enableScriptIntegrationCb;
+    QGroupBox* m_scriptGroup;
     QLineEdit* m_phpPathEdit;
     QLineEdit* m_perlPathEdit;
     QPushButton* m_saveScriptBtn;
