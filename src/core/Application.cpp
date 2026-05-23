@@ -136,6 +136,9 @@ void Application::setupSignalConnections()
             m_overlayServer.get(), &OverlayServer::broadcastStopAll);
     connect(m_queueManager.get(), &QueueManager::clearQueueRequested,
             m_overlayServer.get(), &OverlayServer::broadcastClearQueue);
+    // パニックボタン -> 実行中の外部スクリプトプロセスを全て強制終了
+    connect(m_queueManager.get(), &QueueManager::stopAllRequested,
+            m_overlayServer.get(), &OverlayServer::killScriptProcesses);
 
     // 4. OverlayServer -> キューマネージャー (OBS側の描画完了コールバック接続)
     connect(m_overlayServer.get(), &OverlayServer::effectFinished,

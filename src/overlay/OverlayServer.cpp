@@ -135,11 +135,32 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
             if (!perlInterpreter.isEmpty()) {
                 QString appDir = QCoreApplication::applicationDirPath();
                 QString absolutePerlPath = QDir::toNativeSeparators(appDir + "/" + effect.perlPath);
-                
+
                 QStringList arguments;
                 arguments << absolutePerlPath << item.username << item.rewardId << item.timestamp.toString(Qt::ISODate);
                 LOG_INFO("Executing external Perl script (Full mode): " + absolutePerlPath);
-                QProcess::startDetached(perlInterpreter, arguments);
+
+                auto* proc = new QProcess(this);
+                m_runningScriptProcesses.append(proc);
+                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                    this, [this, proc](int exitCode, QProcess::ExitStatus) {
+                        LOG_INFO(QString("External Perl script finished. Exit code: %1").arg(exitCode));
+                        m_runningScriptProcesses.removeAll(proc);
+                        proc->deleteLater();
+                    });
+                // 30秒タイムアウト監視（php.ini max_execution_time デフォルト値に準拠）
+                QTimer::singleShot(SCRIPT_TIMEOUT_SEC * 1000, this, [this, proc]() {
+                    if (proc->state() == QProcess::Running) {
+                        LOG_WARN(QString("External Perl script timed out after %1 sec. Force killing.").arg(SCRIPT_TIMEOUT_SEC));
+                        proc->kill();
+                    }
+                });
+                proc->start(perlInterpreter, arguments);
+                if (!proc->waitForStarted(3000)) {
+                    LOG_ERROR("Failed to start external Perl script process.");
+                    m_runningScriptProcesses.removeAll(proc);
+                    proc->deleteLater();
+                }
             } else {
                 LOG_WARN("Perl interpreter is not configured. Skipping Perl script.");
             }
@@ -151,11 +172,32 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
             if (!phpInterpreter.isEmpty()) {
                 QString appDir = QCoreApplication::applicationDirPath();
                 QString absolutePhpPath = QDir::toNativeSeparators(appDir + "/" + effect.phpPath);
-                
+
                 QStringList arguments;
                 arguments << absolutePhpPath << item.username << item.rewardId << item.timestamp.toString(Qt::ISODate);
                 LOG_INFO("Executing external PHP script (Full mode): " + absolutePhpPath);
-                QProcess::startDetached(phpInterpreter, arguments);
+
+                auto* proc = new QProcess(this);
+                m_runningScriptProcesses.append(proc);
+                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                    this, [this, proc](int exitCode, QProcess::ExitStatus) {
+                        LOG_INFO(QString("External PHP script finished. Exit code: %1").arg(exitCode));
+                        m_runningScriptProcesses.removeAll(proc);
+                        proc->deleteLater();
+                    });
+                // 30秒タイムアウト監視（php.ini max_execution_time デフォルト値に準拠）
+                QTimer::singleShot(SCRIPT_TIMEOUT_SEC * 1000, this, [this, proc]() {
+                    if (proc->state() == QProcess::Running) {
+                        LOG_WARN(QString("External PHP script timed out after %1 sec. Force killing.").arg(SCRIPT_TIMEOUT_SEC));
+                        proc->kill();
+                    }
+                });
+                proc->start(phpInterpreter, arguments);
+                if (!proc->waitForStarted(3000)) {
+                    LOG_ERROR("Failed to start external PHP script process.");
+                    m_runningScriptProcesses.removeAll(proc);
+                    proc->deleteLater();
+                }
             } else {
                 LOG_WARN("PHP interpreter is not configured. Skipping PHP script.");
             }
@@ -207,9 +249,27 @@ void OverlayServer::sendEffect(const QueueItem& item, const Effect& effect)
 
             if (!interpreter.isEmpty()) {
                 LOG_INFO(QString("Executing external script: %1 %2").arg(interpreter).arg(scriptPath));
-                bool success = QProcess::startDetached(interpreter, arguments);
-                if (!success) {
+
+                auto* proc = new QProcess(this);
+                m_runningScriptProcesses.append(proc);
+                connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                    this, [this, proc](int exitCode, QProcess::ExitStatus) {
+                        LOG_INFO(QString("External script finished. Exit code: %1").arg(exitCode));
+                        m_runningScriptProcesses.removeAll(proc);
+                        proc->deleteLater();
+                    });
+                // 30秒タイムアウト監視（php.ini max_execution_time デフォルト値に準拠）
+                QTimer::singleShot(SCRIPT_TIMEOUT_SEC * 1000, this, [this, proc]() {
+                    if (proc->state() == QProcess::Running) {
+                        LOG_WARN(QString("External script timed out after %1 sec. Force killing.").arg(SCRIPT_TIMEOUT_SEC));
+                        proc->kill();
+                    }
+                });
+                proc->start(interpreter, arguments);
+                if (!proc->waitForStarted(3000)) {
                     LOG_ERROR("Failed to start external script process.");
+                    m_runningScriptProcesses.removeAll(proc);
+                    proc->deleteLater();
                 }
             } else {
                 LOG_WARN("No interpreter matched for script: " + scriptPath);
@@ -281,6 +341,21 @@ void OverlayServer::broadcastClearQueue()
     QString message = doc.toJson(QJsonDocument::Compact);
 
     broadcastMessage(message);
+}
+
+void OverlayServer::killScriptProcesses()
+{
+    if (m_runningScriptProcesses.isEmpty()) {
+        LOG_INFO("Panic: No running script processes to kill.");
+        return;
+    }
+    LOG_WARN(QString("Panic: Force killing %1 running external script process(es).").arg(m_runningScriptProcesses.size()));
+    for (auto* proc : m_runningScriptProcesses) {
+        if (proc && proc->state() == QProcess::Running) {
+            proc->kill();
+        }
+    }
+    // finished シグナルで各プロセスが自動クリーンアップされる
 }
 
 void OverlayServer::onNewConnection()

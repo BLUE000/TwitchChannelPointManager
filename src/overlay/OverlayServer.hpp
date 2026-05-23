@@ -6,6 +6,7 @@
 #include <QHttpServer>
 #include <QString>
 #include <QList>
+#include <QProcess>
 #include "../reward/QueueManager.hpp"
 
 class FileManager;
@@ -22,6 +23,12 @@ private:
 
     int m_wsPort;
     int m_httpPort;
+
+    // 外部スクリプトプロセス管理リスト
+    QList<QProcess*> m_runningScriptProcesses;
+
+    // スクリプト実行タイムアウト秒数（php.ini の max_execution_time デフォルト値に準拠）
+    static constexpr int SCRIPT_TIMEOUT_SEC = 30;
 
 public:
     explicit OverlayServer(FileManager* fileManager, Database* database, QObject* parent = nullptr);
@@ -47,6 +54,9 @@ public slots:
     // 演出の中止、キュー消去指示をOBSへ一斉配信
     void broadcastStopAll();
     void broadcastClearQueue();
+
+    // 実行中の外部スクリプトプロセスを全て強制終了（パニックボタン連携）
+    void killScriptProcesses();
 
 private slots:
     void onNewConnection();
