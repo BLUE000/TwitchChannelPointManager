@@ -99,7 +99,7 @@
 
 | プレースホルダー | 置換後の効果 | 表示・置換の例 |
 | :--- | :--- | :--- |
-| `{user}` | チャンネルポイントを引き換えた視聴者の名前（Twitch表示名）に置換されます。 | `take1` |
+| `{user}` | チャンネルポイントを引き換えた視聴者の名前（Twitch表示名）に置換されます。 | `twitch_user` |
 | `{reward_id}` | 引き換えられた Twitch カスタム報酬の一意なID文字列に置換されます。 | `rzb7kp8tg7no8ghnugx631bqqauvy3` |
 | `{time}` | ポイントが引き換えられたローカル時刻に置換されます（`yyyy-MM-dd HH:mm:ss` 形式）。 | `2026-05-23 10:39:07` |
 
@@ -114,7 +114,7 @@
 
 | 引数の位置 | 内容・データ型 | データの例 |
 | :---: | :--- | :--- |
-| **第1引数** | チャンネルポイントを引き換えた視聴者のユーザー名（文字列） | `take1` |
+| **第1引数** | チャンネルポイントを引き換えた視聴者のユーザー名（文字列） | `twitch_user` |
 | **第2引数** | 引き換えられた Twitch カスタム報酬 ID（文字列） | `rzb7kp8tg7no8ghnugx631bqqauvy3` |
 | **第3引数** | 引き換えが行われた日時（ISO 8601形式の文字列） | `2026-05-23T10:39:07` |
 
@@ -123,7 +123,7 @@
 *   **Perlの場合 (`.pl` / `.cgi`)**
     ```perl
     # 引数配列 @ARGV から順番に取得
-    my $username  = $ARGV[0]; # take1
+    my $username  = $ARGV[0]; # twitch_user
     my $reward_id = $ARGV[1]; # rzb7kp8tg7no8ghnugx631bqqauvy3
     my $timestamp = $ARGV[2]; # 2026-05-23T10:39:07
     ```
@@ -131,7 +131,7 @@
     ```php
     <?php
     // 引数配列 $argv から順番に取得 (※ 0番目はスクリプトファイル名が入るため1番目から)
-    $username  = $argv[1]; // take1
+    $username  = $argv[1]; // twitch_user
     $reward_id = $argv[2]; // rzb7kp8tg7no8ghnugx631bqqauvy3
     $timestamp = $argv[3]; // 2026-05-23T10:39:07
     ```
