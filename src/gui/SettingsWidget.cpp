@@ -104,6 +104,9 @@ void SettingsWidget::setupUi()
 
     m_scriptGroup->setVisible(false);
     connect(m_enableScriptIntegrationCb, &QCheckBox::toggled, m_scriptGroup, &QGroupBox::setVisible);
+    connect(m_enableScriptIntegrationCb, &QCheckBox::toggled, this, &SettingsWidget::autoSaveScriptSettings);
+    connect(m_phpPathEdit, &QLineEdit::textChanged, this, &SettingsWidget::autoSaveScriptSettings);
+    connect(m_perlPathEdit, &QLineEdit::textChanged, this, &SettingsWidget::autoSaveScriptSettings);
 
     mainLayout->addWidget(m_scriptGroup);
 
@@ -159,6 +162,10 @@ void SettingsWidget::loadCurrentSettings()
         m_wsPortSpin->setValue(wsPort);
         m_httpPortSpin->setValue(httpPort);
 
+        m_enableScriptIntegrationCb->blockSignals(true);
+        m_phpPathEdit->blockSignals(true);
+        m_perlPathEdit->blockSignals(true);
+
         QString enabled = m_app->database()->getSetting("script_integration_enabled", "0");
         m_enableScriptIntegrationCb->setChecked(enabled == "1");
         m_scriptGroup->setVisible(enabled == "1");
@@ -167,6 +174,10 @@ void SettingsWidget::loadCurrentSettings()
         QString perlPath = m_app->database()->getSetting("perl_interpreter_path", "");
         m_phpPathEdit->setText(QDir::toNativeSeparators(phpPath));
         m_perlPathEdit->setText(QDir::toNativeSeparators(perlPath));
+
+        m_enableScriptIntegrationCb->blockSignals(false);
+        m_phpPathEdit->blockSignals(false);
+        m_perlPathEdit->blockSignals(false);
     }
 
     // OAuth情報ロード
@@ -273,6 +284,12 @@ void SettingsWidget::onBrowsePerlPath()
 
 void SettingsWidget::onSaveScriptClicked()
 {
+    autoSaveScriptSettings();
+    QMessageBox::information(this, "成功", "外部スクリプトの連携設定を保存しました。");
+}
+
+void SettingsWidget::autoSaveScriptSettings()
+{
     if (!m_app->database()) return;
 
     QString enabled = m_enableScriptIntegrationCb->isChecked() ? "1" : "0";
@@ -282,6 +299,4 @@ void SettingsWidget::onSaveScriptClicked()
     m_app->database()->saveSetting("script_integration_enabled", enabled);
     m_app->database()->saveSetting("php_interpreter_path", phpPath);
     m_app->database()->saveSetting("perl_interpreter_path", perlPath);
-
-    QMessageBox::information(this, "成功", "外部スクリプトの連携設定を保存しました。");
 }

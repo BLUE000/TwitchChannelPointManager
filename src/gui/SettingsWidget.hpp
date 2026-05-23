@@ -45,6 +45,7 @@ private slots:
     void onBrowsePhpPath();
     void onBrowsePerlPath();
     void onSaveScriptClicked();
+    void autoSaveScriptSettings();
 
 private:
     void setupUi();
