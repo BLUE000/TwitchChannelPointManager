@@ -138,6 +138,115 @@
 
 ---
 
+### 4. 具体的なファイル作成例
+
+#### ① カスタム演出画面例 (`overlay.html`)
+以下は、WebSocketイベントを直接受信し、独自のCSS装飾をしたゴールドのバナー演出を表示した後に、C++アプリに再生完了通知（`effect_completed`）を送るシンプルな記述例です。
+
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <title>Custom Overlay</title>
+    <style>
+        body { margin: 0; background-color: transparent; overflow: hidden; }
+        .simple-banner {
+            position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85); color: #FFD700; padding: 15px 30px;
+            font-size: 26px; font-weight: bold; border-radius: 8px;
+            border: 2px solid #FFD700; font-family: 'Arial', sans-serif;
+            text-shadow: 2px 2px 4px #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper"></div>
+    <script>
+        // ポート番号はアプリ起動時に自動置換されます
+        const ws = new WebSocket("ws://localhost:{{WS_PORT}}/overlay");
+        
+        ws.onmessage = (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "show_effect") {
+                const data = msg.data;
+                const wrapper = document.getElementById("wrapper");
+                
+                // {user} 置換済みの吹き出し用文字列を表示
+                wrapper.innerHTML = `<div class="simple-banner">${data.effect.text}</div>`;
+                
+                // 5秒表示したあとにバナーを消し、C++側へ完了通知を送信して次の演出キューへ進める
+                setTimeout(() => {
+                    wrapper.innerHTML = "";
+                    ws.send(JSON.stringify({
+                        type: "effect_completed",
+                        data: { queueId: data.queueId }
+                    }));
+                }, 5000);
+            }
+        };
+    </script>
+</body>
+</html>
+```
+
+#### ② Perlによる履歴書き出し例 (`logger.pl` / `logger.cgi`)
+Twitchでポイントが使われるたびに、ローカルディレクトリ内のテキストファイル `point_history.txt` へ実行履歴を自動で追記していくスクリプト例です。
+
+```perl
+#!/usr/bin/perl
+use strict;
+use warnings;
+use utf8;
+use open ':std', ':encoding(UTF-8)';
+
+# コマンドライン引数の受け取り（無い場合のデフォルト値付き）
+my $username  = $ARGV[0] // "Anonymous";
+my $reward_id = $ARGV[1] // "Unknown";
+my $timestamp = $ARGV[2] // "N/A";
+
+# ログファイル名
+my $log_file = "point_history.txt";
+
+# ファイルへ追記 (Append) モードでオープン
+if (open(my $fh, ">>:encoding(UTF-8)", $log_file)) {
+    print $fh "[$timestamp] 視聴者 $username が報酬 (ID: $reward_id) を使用しました。\n";
+    close($fh);
+    print "Perl Log write success.\n";
+} else {
+    warn "Cannot open $log_file: $!";
+}
+```
+
+#### ③ PHPによる履歴書き出し例 (`logger.php`)
+上記と同様に、ポイント引き換えログを自動的にローカルのファイルに追記するPHPによるスクリプト例です。
+
+```php
+<?php
+// 文字エンコーディングの設定
+header('Content-Type: text/plain; charset=UTF-8');
+
+// コマンドライン引数の受け取り (argv[0]にはスクリプト名が入るため1番目から取得)
+$username  = isset($argv[1]) ? $argv[1] : "Anonymous";
+$reward_id = isset($argv[2]) ? $argv[2] : "Unknown";
+$timestamp = isset($argv[3]) ? $argv[3] : "N/A";
+
+// ログファイル名
+$log_file = "point_history.txt";
+
+// 追記するメッセージ行を生成
+$log_message = sprintf("[%s] 視聴者 %s が報酬 (ID: %s) を使用しました。\n", $timestamp, $username, $reward_id);
+
+// 排他ロックをかけつつ追記保存
+if (file_put_contents($log_file, $log_message, FILE_APPEND | LOCK_EX) !== false) {
+    echo "PHP Log write success.\n";
+} else {
+    echo "Log write failed.\n";
+}
+```
+
+---
+
 ## ❓ トラブルシューティング
 
 * **Q. OBSに演出が表示されない・音が聞こえない**
