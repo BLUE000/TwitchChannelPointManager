@@ -6,6 +6,9 @@
 #include "../core/Application.hpp"
 #include <QVBoxLayout>
 #include <QStatusBar>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QPushButton>
 
 #ifndef APP_VERSION_STRING
 #define APP_VERSION_STRING "Unknown"
@@ -47,6 +50,36 @@ void MainWindow::setupUi()
     m_tabWidget->addTab(m_rewardEditorWidget, "🎁 報酬演出管理");
     m_tabWidget->addTab(m_statisticsWidget, "📊 統計ランキング");
     m_tabWidget->addTab(m_settingsWidget, "⚙️ システム設定");
+
+    // オンラインヘルプボタンの追加（右上に配置）
+    QPushButton* helpButton = new QPushButton("❓ ヘルプ", m_tabWidget);
+    helpButton->setCursor(Qt::PointingHandCursor);
+    helpButton->setToolTip("GitHubのオンラインマニュアル（README.md）を開きます");
+    helpButton->setStyleSheet(R"(
+        QPushButton {
+            border: 1px solid #35353B;
+            border-radius: 4px;
+            padding: 4px 12px;
+            color: #E1E1E6;
+            background-color: #1D1D22;
+            font-size: 12px;
+            margin-right: 6px;
+            margin-top: 2px;
+        }
+        QPushButton:hover {
+            background-color: #29292E;
+            color: #FFFFFF;
+            border-color: #4A4A52;
+        }
+        QPushButton:pressed {
+            background-color: #121214;
+        }
+    )");
+    m_tabWidget->setCornerWidget(helpButton, Qt::TopRightCorner);
+
+    connect(helpButton, &QPushButton::clicked, this, []() {
+        QDesktopServices::openUrl(QUrl("https://github.com/BLUE000/TwitchChannelPointManager/blob/master/README.md"));
+    });
 
     // 全体の基本スタイル
     setStyleSheet(R"(
