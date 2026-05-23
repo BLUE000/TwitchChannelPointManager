@@ -1,6 +1,8 @@
 # Workspace and status files
 *.code-workspace
 WIP_STATE.md
+.qtcreator/
+.vscode/
 
 # Build and temporary files (optional but good practice for C++ projects)
 build/
@@ -16,13 +18,17 @@ bin/
 out/
 CMakeSettings.json
 CMakePresets.json
+CMakeUserPresets.json
 
-# Local databases and runtime configuration
+# Local databases, HTML overlays, and runtime configuration
 *.db
 config.json
 credentials.cmake
 twitch_overlay.log
 *.log
+overlay.html
+ranking.html
+point_history.txt
 
 # Distribution releases and ZIP packages
 release_*/
