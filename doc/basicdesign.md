@@ -77,7 +77,8 @@ src/
 ├── core/                          # コア機能
 │   ├── Application                # アプリケーション本体
 │   ├── Config                     # 設定管理
-│   └── Logger                     # ログ出力
+│   ├── Logger                     # ログ出力
+│   └── HTMLSanitizer              # HTML/CSS サニタイザー
 ├── twitch/                        # Twitch連携
 │   ├── TwitchAuth                 # OAuth認証
 │   ├── TwitchEventSub             # EventSub接続
@@ -293,9 +294,9 @@ ranking/          # 統計ランキング用カスタム表示のドキュメン
 | パス | 説明 |
 | :--- | :--- |
 | `/overlay` | OBS演出用WebSocket連携HTMLページ（変更なし） |
-| `/assets/{filename}` | アセットファイル配信 |
+| `/assets/{filename}` | アセットファイル配信。`.html`/`.htm` などの静的ファイルを配信する際は、配信直前に HTML サニタイザーで自動クレンジングされる。 |
 | `/ranking` | `ranking/default.html` を配信（デフォルトランキング表示） |
-| `/ranking/{filename}` | `ranking/` フォルダ内ファイルを配信。`.html`/`.htm` などの静的ファイルを配信（`{{HTTP_PORT}}` 置換あり）。パストラバーサル防止済み。 |
+| `/ranking/{filename}` | `ranking/` フォルダ内ファイルを配信。`.html`/`.htm` などの静的ファイルを配信（`{{HTTP_PORT}}` 置換あり、配信直前に HTML サニタイザーで自動クレンジング）。パストラバーサル防止済み。 |
 | `/api/ranking?period=0\|1\|2\|3` | ランキングJSONデータ API（変更なし） |
 
 #### リクエスト例
@@ -344,19 +345,33 @@ GET http://localhost:28081/assets/video789.webm
 
 ```cpp
 // overlay/OverlayServer.hpp
-class OverlayServer {
+class OverlayServer : public QObject {
+    Q_OBJECT
 private:
-    QWebSocketServer* wsServer;      // WebSocket サーバー
-    QHttpServer* assetServer;        // HTTP アセットサーバー
-    FileManager* fileManager;        // ファイル管理
+    QWebSocketServer* m_wsServer;    // WebSocket サーバー
+    QHttpServer* m_httpServer;       // HTTP アセットサーバー
+    FileManager* m_fileManager;      // ファイル管理
+    Database* m_database;            // データベース
+    QList<QWebSocket*> m_clients;
 
 public:
-    void startWebSocketServer(int port = 28080);
-    void startAssetServer(int port = 28081);
-    void sendEffect(const QueueItem& item);
-    QString getAssetUrl(const QString& filePath);  // パス変換
+    explicit OverlayServer(FileManager* fileManager, Database* database, QObject* parent = nullptr);
+    ~OverlayServer();
+
+    bool start(int wsPort, int httpPort);
+    void stop();
+    void sendEffect(const QueueItem& item, const Effect& effect);
+
+signals:
+    void effectFinished(const QString& queueId);
+    void clientCountChanged(int count);
+
+public slots:
+    void broadcastStopAll();
+    void broadcastClearQueue();
 };
 ```
+
 
 ### 5.5 設定項目の追加
 

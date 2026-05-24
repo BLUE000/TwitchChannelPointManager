@@ -45,7 +45,7 @@
 ## 🛠️ 画面の機能と使い方
 
 ### 報酬演出管理画面（メイン編集）
-左側のリストで Twitch 上の報酬を一覧し、右側でそれぞれの演出を設定します。
+Left側のリストで Twitch 上の報酬を一覧し、右側でそれぞれの演出を設定します。
 
 #### ① リストのステータス（色分け表示）
 ユーザーの混乱を防ぐため、報酬の状態はわかりやすく3つに色分けされて表示されます。
@@ -76,30 +76,28 @@
 
 #### 📺 OBSへのランキング出力（オーバーレイ表示）
 アプリ上で確認するだけでなく、OBSのブラウザソースとして配信画面に直接オシャレなランキングボード（リーダーボード）をオーバーレイ表示することが可能です。
-詳細な登録手順は「クイックスタートガイドのSTEP 2」を、表示カスタマイズに関しては下部の「カスタマイズ機能」セクションをご覧ください。
+詳細な登録手順は「クイックスタートガイドのSTEP 2」をご覧ください。
 
 #### カスタマイズ機能
 各統計タブ（ランキング、ユーザ別）には、アプリ画面内での**「背景画像」** と **「文字色」** を変更できる設定ボタンがあります。
-*   **背景画像**: デフォルトの表示領域サイズに合わせた画像を設定することをお勧めしますが、サイズが合わない場合でも自動的に領域に合わせて拡縮して表示されます。また、ウィンドウを最大化したり、手動でサイズ変更した場合でもレスポンシブに追従して拡縮されます。
+*   **背景画像**: デフォルトの表示領域サイズに合わせた画像を設定することをお勧めしますが、サイズが合わない場合でも自動的に領域に合わせて拡縮して表示されます。また、ウィンドウを最大化したり、最大幅を手動変更した場合でもレスポンシブに追従して拡縮されます。
 *   **文字色**: 設定した背景画像に合わせて、見やすい文字色をカラーパレットから自由に選択できます。
 *   **期間切り替えとCSV出力**: 「今日」「今週」「今月」「全期間」のプルダウンで絞り込みができ、表示中のデータをCSVファイルとして出力することも可能です。
 
 ---
 
-## 🎨 カスタマイズ & 外部連携機能（開発者・パワーユーザー向け）
+## 🎨 カスタマイズ & 安全なカスタムHTML演出機能
 
-本システムは、HTML/CSSによるデザイン変更や、Perl / PHPなどの外部スクリプト言語を用いた無限の拡張性を提供しています。
+本システムは、セキュリティに万全を期した安全なサンドボックス環境上で、HTML/CSSによる高度なデザインカスタマイズを実現する機能を提供しています。
 
-### 1. OBS 演出・ランキング画面の完全カスタマイズ
+### 1. OBS 演出・ランキング画面のカスタマイズ
 
-アプリ起動後、OBSが以下のURLにアクセスした際、実行ファイル（`.exe`）と同階層にある外部HTMLファイルを読み込んで配信します。これらのファイルを直接エディタで編集することで、デザインやアニメーションを完全に自作できます。（※ファイルが存在しない場合は、アプリが初期テンプレートを自動生成します）
+アプリ起動後、OBSが以下のURLにアクセスした際、実行ファイル（`.exe`）と同階層にある外部HTMLファイルを読み込んで安全に配信します。これらのファイルを直接エディタで編集することで、デザインやアニメーションを自作できます。（※ファイルが存在しない場合は、アプリが初期テンプレートを自動生成します）
 
 *   **演出画面 (`overlay.html`)**: `http://localhost:28081/overlay`
     *   画面上の画像・動画・テキストのレイアウトや、CSSアニメーションを編集できます。
-    *   `{{WS_PORT}}` という記述をしておくことで、アプリ側で設定された WebSocket ポートに自動置換されます。
 *   **ランキング表示 (`ranking.html`)**: `http://localhost:28081/ranking`
     *   最新の使用数ランキングを一覧表示する画面です。デフォルトでは5秒ごとに最新情報を自動取得します。
-    *   `{{HTTP_PORT}}` は、アプリ側で設定されたアセット配信用HTTPポートに自動置換されます。
 *   **ランキングデータ取得用API (`/api/ranking`)**: `http://localhost:28081/api/ranking`
     *   現在のランキング情報をJSON形式で取得できます。
     *   クエリパラメータ `?period=0`（今日）、`?period=1`（今週）、`?period=2`（今月）、`?period=3`（全期間）で絞り込めます。
@@ -114,174 +112,89 @@
 | :--- | :--- | :--- |
 | `{user}` | チャンネルポイントを引き換えた視聴者の名前（Twitch表示名）に置換されます。 | `twitch_user` |
 | `{reward_id}` | 引き換えられた Twitch カスタム報酬の一意なID文字列に置換されます。 | `rzb7kp8tg7no8ghnugx631bqqauvy3` |
-| `{time}` | ポイントが引き換えられたローカル時刻に置換されます（`yyyy-MM-dd HH:mm:ss` 形式）。 | `2026-05-23 10:39:07` |
+| `{time}` | ポイントが引き換えられたローカル時刻に置換されます（`yyyy-MM-dd HH:mm:ss` 形式）。 | `2026-05-24 10:05:07` |
 
 ---
 
-### 3. Perl / PHP 外部スクリプト連携
+### 3. 🛡️ ゼロトラストHTML/CSSサニタイザー（安全ガード）
 
-演出の種類を「**外部スクリプト実行 (script)**」に設定し、実行したいスクリプトのパス（`.pl`、`.cgi`、`.php`）を指定すると、ポイント引き換え時にアプリの裏側で非同期にスクリプトが自動実行されます。
+本システムには、悪意あるコードの実行やPCの誤動作、外部への情報漏洩を防ぐため、**C++ネイティブによる超厳格なセキュリティフィルター（サニタイザー）**が常時稼働しています。
+カスタム演出用に指定されたHTMLや、ランキング表示用HTMLがOBSへ配信される直前に、アプリ側で危険なコードを強制的に自動消去（無効化）します。
 
-> [!IMPORTANT]
-> **外部スクリプト連携機能の有効化とインタプリタの明示的な設定が必要です**
-> 本機能をご利用になるには、事前にシステム設定画面で **「外部スクリプト連携機能 (Perl/PHP) を有効にする」** チェックボックスをオンにし、免責警告事項に同意した上で、PHP / Perl インタプリタの実行ファイルパス（例: `C:/php/php.exe` や `C:/Strawberry/perl/bin/perl.exe` など）を**明示的に指定して保存**する必要があります。
-> セキュリティと安全性の観点から、機能自体が無効化されている場合や、設定が空のままの場合は、環境変数 `PATH` 等にそれらの実行プログラムが存在する場合であっても**スクリプトの自動実行はスキップ（警告ログ出力）されます**。
+#### ■ サニタイズ（制限・クレンジング）仕様
 
-この際、スクリプトには以下のコマンドライン引数が順番に渡されます。
-
-#### 渡される引数の仕様
-
-| 引数の位置 | 内容・データ型 | データの例 |
-| :---: | :--- | :--- |
-| **第1引数** | チャンネルポイントを引き換えた視聴者のユーザー名（文字列） | `twitch_user` |
-| **第2引数** | 引き換えられた Twitch カスタム報酬 ID（文字列） | `rzb7kp8tg7no8ghnugx631bqqauvy3` |
-| **第3引数** | 引き換えが行われた日時（ISO 8601形式の文字列） | `2026-05-23T10:39:07` |
-
-#### スクリプトでの受け取り例
-
-*   **Perlの場合 (`.pl` / `.cgi`)**
-    ```perl
-    # 引数配列 @ARGV から順番に取得
-    my $username  = $ARGV[0]; # twitch_user
-    my $reward_id = $ARGV[1]; # rzb7kp8tg7no8ghnugx631bqqauvy3
-    my $timestamp = $ARGV[2]; # 2026-05-23T10:39:07
-    ```
-*   **PHPの場合 (`.php`)**
-    ```php
-    <?php
-    // 引数配列 $argv から順番に取得 (※ 0番目はスクリプトファイル名が入るため1番目から)
-    $username  = $argv[1]; // twitch_user
-    $reward_id = $argv[2]; // rzb7kp8tg7no8ghnugx631bqqauvy3
-    $timestamp = $argv[3]; // 2026-05-23T10:39:07
-    ```
-
-#### 💡 応用的な裏技アイデア (アイデア次第で無限に拡張可能)
-このスクリプト起動機能を利用すると、例えば以下のような配信を盛り上げる強力な裏技が作れます。
-
-1. **OBSテキストソースと連動したリアルタイムテロップ表示**
-   * PerlやPHPのスクリプト側で、現在の日時やユーザー名・報酬名を「`1位: たぬき投げ (15回) / 2位: 音響 (10回)`」のような1行のテキストに整形します。
-   * そのテキストを `now_ranking.txt` などのローカルテキストファイルに上書き保存し続けます。
-   * **OBS側の設定**: OBSに「**テキスト（GDI+）**」ソースを追加し、**「ファイルからの読み込み」** にチェックを入れて上記テキストファイルを指定します。
-   * これだけで、視聴者のアクションやランキングの推移が、リアルタイムに配信画面の端でカタカタ流れる電光掲示板テロップのように表示されます！
-
-2. **Discord Webhookへのイベント自動投稿**
-   * Perlの `LWP::UserAgent` や PHP の `curl` を使って、ポイントが引き換えられた瞬間に Discord の Webhook URL に向けて自動でJSONデータをPOST送信します。
-   * 配信を見ていない時でも、「🎉 **引換通知**: `twitch_user` さんが `たぬき投げ` を使用しました！」といったアクティビティ履歴が自分のDiscordサーバーにリアルタイムで綺麗にログとして記録されます。
-
-> [!WARNING]
-> #### ⚠️ 外部スクリプトの利用に関する重要な免責事項（重要）
-> 本システムは、ユーザーが指定した任意の外部プログラム・スクリプトを実行する機能を提供します。本機能をご利用になる場合は、以下の免責事項に完全に同意されたものとみなします。
-> * **自己責任の原則**: 実行するスクリプト（自作スクリプト、および第三者から入手したスクリプト）の設計・安全性・動作テストに関しては、すべて**ユーザー自身の完全な責任**となります。
-> * **損害に対する一切の免責**: 当システムおよびその開発者（BLUE000 / TwitchChannelPointManager）は、実行された外部スクリプトが引き起こした**あらゆる損害**（PC内の重要データの破損・消失、セキュリティインシデント、個人情報の漏洩、システムエラー、スマート家電等の誤動作など）に関して、**一切の責任および賠償義務を負いません。**
-> * **安全性の確保**: 出所の分からない第三者が作成したスクリプトや、中身（コード）を確認できない暗号化されたスクリプトは、マルウェアや悪意ある動作をするリスクがあるため、**絶対に本システムに設定して実行させないでください。** 必ずコードを一行ずつ確認し、安全であることを確認した上でご使用ください。
+1. **JavaScriptの完全無効化（ブロック丸ごと消去）**
+   - `<script> ... </script>` タグは、中のプログラムコード自体も含めて**ブロック丸ごと完全消去**されます。
+   - `onclick`、`onload`、`onerror` などのすべてのイベントハンドラ属性（`on*`）は自動消去されます。
+   - `javascript:` スキームの記述も無効化されます。
+2. **HTMLタグのホワイトリスト制限（9種類のタグのみ許可）**
+   - 以下の許可されたデザイン用タグのみが動作します。
+     **`div`, `span`, `p`, `br`, `table`, `tr`, `td`, `img`, `style`**
+   - これら以外のタグ（`iframe`, `object`, `embed`, `svg`, `canvas`, `link`, `form`, `input`, `button` 等）は**タグごと自動消去**されます。外部CSSを読み込む `link` も完全に排除されます。
+3. **ローカル画像限定ポリシー（SVG除外）**
+   - `img` タグの `src` 属性に指定できるのは、本システムのドキュメントルート（`custom_html/` や `ranking/`）配下に置かれた**ローカル画像ファイル（.png, .jpg, .jpeg, .gif）のみ**です。
+   - 外部サーバーの画像URL（`http://`, `https://`）や、インラインでコードを埋め込めてしまう `data:` スキーム、およびSVG形式（`.svg`）の画像は**自動的に除外**されます。
+4. **CSSの外部接続の遮断**
+   - `<style>` タグやインライン `style` 属性内のCSSから、外部リソースをインポートする **`@import`** や **`url(...)`** の記述を自動消去します。外部フォントの読み込みや、画像を用いた裏側でのトラッキング接続を100%シャットアウトします。
 
 ---
 
 ### 4. 具体的なファイル作成例
 
-#### ① カスタム演出画面例 (`overlay.html`)
-以下は、WebSocketイベントを直接受信し、独自のCSS装飾をしたゴールドのバナー演出を表示した後に、C++アプリに再生完了通知（`effect_completed`）を送るシンプルな記述例です。
+利用者は、JavaScriptやWebSocketなどの複雑なコードを一切書く必要がありません。
+演出時間はC++アプリ側で設定した時間（演出時間）をもとに自動同期され、キュー管理されます。そのため、純粋にデザイン用のHTMLとCSSのアニメーションだけで、お好きなカスタムレイアウトを作ることができます。
+
+#### ① カスタム演出画面例 (`custom_html/banner.html`)
+以下は、フェードインして3秒間ゴールドのメッセージカードが表示される、純粋なHTML/CSSだけの安全なカスタム演出の記述例です。
 
 ```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="utf-8">
-    <title>Custom Overlay</title>
+    <title>Custom HTML Banner</title>
     <style>
-        body { margin: 0; background-color: transparent; overflow: hidden; }
-        .simple-banner {
-            position: absolute; top: 15%; left: 50%; transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.85); color: #FFD700; padding: 15px 30px;
-            font-size: 26px; font-weight: bold; border-radius: 8px;
-            border: 2px solid #FFD700; font-family: 'Arial', sans-serif;
-            text-shadow: 2px 2px 4px #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        body { 
+            margin: 0; 
+            background-color: transparent; 
+            overflow: hidden; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        /* CSSアニメーションによるフェードイン・アウト */
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: scale(0.8); }
+            10% { opacity: 1; transform: scale(1); }
+            90% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.8); }
+        }
+        .message-card {
+            animation: fadeInOut 3s ease-in-out forwards;
+            background: rgba(18, 18, 20, 0.9);
+            color: #FFD700;
+            padding: 20px 40px;
+            font-size: 32px;
+            font-weight: bold;
+            border-radius: 12px;
+            border: 3px solid #FFD700;
+            font-family: 'Helvetica', sans-serif;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            text-align: center;
+        }
+        .user-name {
+            color: #00FFCC;
         }
     </style>
 </head>
 <body>
-    <div id="wrapper"></div>
-    <script>
-        // ポート番号はアプリ起動時に自動置換されます
-        const ws = new WebSocket("ws://localhost:{{WS_PORT}}/overlay");
-        
-        ws.onmessage = (event) => {
-            const msg = JSON.parse(event.data);
-            if (msg.type === "show_effect") {
-                const data = msg.data;
-                const wrapper = document.getElementById("wrapper");
-                
-                // {user} 置換済みの吹き出し用文字列を表示
-                wrapper.innerHTML = `<div class="simple-banner">${data.effect.text}</div>`;
-                
-                // 5秒表示したあとにバナーを消し、C++側へ完了通知を送信して次の演出キューへ進める
-                setTimeout(() => {
-                    wrapper.innerHTML = "";
-                    ws.send(JSON.stringify({
-                        type: "effect_completed",
-                        data: { queueId: data.queueId }
-                    }));
-                }, 5000);
-            }
-        };
-    </script>
+    <!-- {user} などのテキストプレースホルダーは、アプリがOBS配信時に自動的に置換します -->
+    <div class="message-card">
+        🎉 <span class="user-name">{user}</span> さんがポイントを引き換えました！
+    </div>
 </body>
 </html>
-```
-
-#### ② Perlによる履歴書き出し例 (`logger.pl` / `logger.cgi`)
-Twitchでポイントが使われるたびに、ローカルディレクトリ内のテキストファイル `point_history.txt` へ実行履歴を自動で追記していくスクリプト例です。
-
-```perl
-#!/usr/bin/perl
-use strict;
-use warnings;
-use utf8;
-use open ':std', ':encoding(UTF-8)';
-
-# コマンドライン引数の受け取り（無い場合のデフォルト値付き）
-my $username  = $ARGV[0] // "Anonymous";
-my $reward_id = $ARGV[1] // "Unknown";
-my $timestamp = $ARGV[2] // "N/A";
-
-# ログファイル名
-my $log_file = "point_history.txt";
-
-# ファイルへ追記 (Append) モードでオープン
-if (open(my $fh, ">>:encoding(UTF-8)", $log_file)) {
-    print $fh "[$timestamp] 視聴者 $username が報酬 (ID: $reward_id) を使用しました。\n";
-    close($fh);
-    print "Perl Log write success.\n";
-} else {
-    warn "Cannot open $log_file: $!";
-}
-```
-
-#### ③ PHPによる履歴書き出し例 (`logger.php`)
-上記と同様に、ポイント引き換えログを自動的にローカルのファイルに追記するPHPによるスクリプト例です。
-
-```php
-<?php
-// 文字エンコーディングの設定
-header('Content-Type: text/plain; charset=UTF-8');
-
-// コマンドライン引数の受け取り (argv[0]にはスクリプト名が入るため1番目から取得)
-$username  = isset($argv[1]) ? $argv[1] : "Anonymous";
-$reward_id = isset($argv[2]) ? $argv[2] : "Unknown";
-$timestamp = isset($argv[3]) ? $argv[3] : "N/A";
-
-// ログファイル名
-$log_file = "point_history.txt";
-
-// 追記するメッセージ行を生成
-$log_message = sprintf("[%s] 視聴者 %s が報酬 (ID: %s) を使用しました。\n", $timestamp, $username, $reward_id);
-
-// 排他ロックをかけつつ追記保存
-if (file_put_contents($log_file, $log_message, FILE_APPEND | LOCK_EX) !== false) {
-    echo "PHP Log write success.\n";
-} else {
-    echo "Log write failed.\n";
-}
 ```
 
 ---
@@ -291,8 +204,8 @@ if (file_put_contents($log_file, $log_message, FILE_APPEND | LOCK_EX) !== false)
 * **Q. OBSに演出が表示されない・音が聞こえない**
   * **A1.** アプリのシステム設定で「WebSocketサーバー」および「アセットサーバー」が稼働中になっているかご確認ください。
   * **A2.** OBSのブラウザソースのURLが正確に `http://localhost:28081/overlay` に設定されているか確認してください。アセットサーバーのポート番号（28081）はシステム設定で変更可能です。
-* **Q. アセット参照で大容量ファイルを設定すると重くなる？**
-  * **A. 当アプリは超軽量アセットサーバーを内蔵しています。** アセットは必要な時にのみOBSへURL変換されて配信されるため、PCゲームやOBSのエンコード性能に影響を与えない超低負荷動作が保証されています。
+* **Q. HTML内の画像やフォントが読み込めない**
+  * **A.** 外部の `http` URLや `data:` スキーム、@import 等は、安全対策（サニタイザー）により無効化されます。アセット（画像等）は必ず `custom_html` フォルダ内に一緒に配置した上で、ローカルの相対パスで指定してください。
 
 ---
 
@@ -320,7 +233,7 @@ copies or substantial portions of the Software.
 ```
 
 ### サードパーティ製ライブラリの権利表記
-本システムで使用している難読化ライブラリ（TransCipher）の権利表記は以下の通りです。
+本システムで使用している暗号化ライブラリ（TransCipher）の権利表記は以下の通りです。
 
 ```text
 This software uses TransCipher library.
