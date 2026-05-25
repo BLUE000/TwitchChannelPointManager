@@ -33,3 +33,7 @@ point_history.txt
 # Distribution releases and ZIP packages
 release_*/
 *.zip
+
+# Distribution folders
+TwitchChannelPointManager_Ver*/
+
