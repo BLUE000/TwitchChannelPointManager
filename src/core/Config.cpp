@@ -120,7 +120,7 @@ QString Config::loadSecureString(const QString& key, const QString& secretKey, c
         return defaultValue;
     }
 
-    QString decryptedString = QString::fromUtf8(result.data());
+    QString decryptedString = QString::fromUtf8(result.data().constData());
     
     // キャッシュに保存して次回以降は通信をスキップ
     m_secureCache.insert(key, decryptedString);
