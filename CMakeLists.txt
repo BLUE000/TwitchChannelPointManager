@@ -118,6 +118,22 @@ if(GIT_FOUND)
 endif()
 
 # ==========================================
+# 登録システム名 (system_name) の構築
+# ==========================================
+# 1. アプリ名 (PROJECT_NAME) からスペースや記号をすべてアンダーバー 「_」 に置換
+string(REGEX REPLACE "[^a-zA-Z0-9]" "_" SAFE_APP_NAME "${PROJECT_NAME}")
+
+# 2. 文字数制限（最大50文字）を超える場合は、入るところまで切り詰める
+string(LENGTH "${SAFE_APP_NAME}" APP_NAME_LEN)
+if (APP_NAME_LEN GREATER 50)
+    string(SUBSTRING "${SAFE_APP_NAME}" 0 50 TRANSCIPHER_SYSTEM_NAME)
+else()
+    set(TRANSCIPHER_SYSTEM_NAME "${SAFE_APP_NAME}")
+endif()
+
+message(STATUS "TransCipher System Name: ${TRANSCIPHER_SYSTEM_NAME}")
+
+# ==========================================
 # PHP Web APIからの自動トークン取得
 # ==========================================
 set(TRANSCIPHER_TOKEN_ISSUER_URL "https://streamers-tool.sakura.ne.jp/TransCipher/index.php" CACHE STRING "URL for automated token issuance")
@@ -126,7 +142,7 @@ set(TRANSCIPHER_BUILD_SECRET "BLUE000_BUILD_SECRET_KEY" CACHE STRING "Secret pas
 set(TRANSCIPHER_API_TOKEN "UNAUTHORIZED_TOKEN")
 
 # JSON文字列の構築
-set(CURL_JSON_PAYLOAD "{\"action\":\"generate\",\"build_secret\":\"${TRANSCIPHER_BUILD_SECRET}\",\"build_hash\":\"${GIT_DESCRIBE}\",\"is_official\":")
+set(CURL_JSON_PAYLOAD "{\"action\":\"generate\",\"system_name\":\"${TRANSCIPHER_SYSTEM_NAME}\",\"build_secret\":\"${TRANSCIPHER_BUILD_SECRET}\",\"build_hash\":\"${GIT_DESCRIBE}\",\"is_official\":")
 
 if (BUILD_IS_CUSTOMIZED EQUAL 0)
     message(STATUS "Official Build: Requesting standard API token from ${TRANSCIPHER_TOKEN_ISSUER_URL}...")
