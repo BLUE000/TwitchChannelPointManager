@@ -243,9 +243,26 @@ copies or substantial portions of the Software.
 ```
 
 ### サードパーティ製ライブラリの権利表記
-本システムで使用している暗号化ライブラリ（TransCipher）の権利表記は以下の通りです。
 
+本システムで使用しているライブラリおよびフレームワークの権利表記は以下の通りです。
+
+#### 1. TransCipher
 ```text
 This software uses TransCipher library.
 Copyright (c) 2026 BLUE000.
+Licensed under the MIT License.
+```
+
+#### 2. Qt ツールキット (Qt6)
+本システムは **Qt6 ツールキット (LGPLv3 ライセンス)** を動的にリンクして使用しています。  
+Qt6 ツールキットの著作権は The Qt Company およびその貢献者に帰属します。  
+詳細およびソースコードについては、[Qt 公式サイト](https://www.qt.io) をご覧ください。  
+ユーザーは LGPLv3 のライセンス条項に基づき、動的リンクされている Qt ライブラリを代替バージョンに置換して本アプリを実行する権利が認められます。
+
+#### 3. Google Test (GTest)
+本システムの自動テスト用フレームワークとして Google Test を使用しています。
+```text
+Copyright 2008, Google Inc.
+All rights reserved.
+Licensed under the 3-Clause BSD License.
 ```

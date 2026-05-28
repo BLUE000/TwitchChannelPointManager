@@ -5,6 +5,7 @@
 #include "SettingsWidget.hpp"
 #include "../core/Application.hpp"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QStatusBar>
 #include <QDesktopServices>
 #include <QUrl>
@@ -13,6 +14,9 @@
 #include <QRandomGenerator>
 #include <QPixmap>
 #include <QByteArray>
+#include <QDialog>
+#include <QTextBrowser>
+#include <QLabel>
 
 #ifndef APP_VERSION_STRING
 #define APP_VERSION_STRING "Unknown"
@@ -64,11 +68,21 @@ void MainWindow::setupUi()
     m_tabWidget->addTab(m_statisticsWidget, "📊 統計ランキング");
     m_tabWidget->addTab(m_settingsWidget, "⚙️ システム設定");
 
-    // オンラインヘルプボタンの追加（右上に配置）
-    QPushButton* helpButton = new QPushButton("❓ ヘルプ", m_tabWidget);
+    // 右上の操作ボタンコンテナ作成 (ABOUT & HELP)
+    QWidget* cornerContainer = new QWidget(m_tabWidget);
+    QHBoxLayout* cornerLayout = new QHBoxLayout(cornerContainer);
+    cornerLayout->setContentsMargins(0, 0, 6, 0);
+    cornerLayout->setSpacing(6);
+
+    QPushButton* aboutButton = new QPushButton("ℹ️ ABOUT", cornerContainer);
+    aboutButton->setCursor(Qt::PointingHandCursor);
+    aboutButton->setToolTip("アプリケーション情報とライセンス表記を表示します");
+
+    QPushButton* helpButton = new QPushButton("❓ HELP", cornerContainer);
     helpButton->setCursor(Qt::PointingHandCursor);
     helpButton->setToolTip("GitHubのオンラインマニュアル（README.md）を開きます");
-    helpButton->setStyleSheet(R"(
+
+    QString cornerButtonStyle = R"(
         QPushButton {
             border: 1px solid #35353B;
             border-radius: 4px;
@@ -76,8 +90,6 @@ void MainWindow::setupUi()
             color: #E1E1E6;
             background-color: #1D1D22;
             font-size: 12px;
-            margin-right: 6px;
-            margin-top: 2px;
         }
         QPushButton:hover {
             background-color: #29292E;
@@ -87,9 +99,85 @@ void MainWindow::setupUi()
         QPushButton:pressed {
             background-color: #121214;
         }
-    )");
-    m_tabWidget->setCornerWidget(helpButton, Qt::TopRightCorner);
+    )";
+    aboutButton->setStyleSheet(cornerButtonStyle);
+    helpButton->setStyleSheet(cornerButtonStyle);
 
+    cornerLayout->addWidget(aboutButton);
+    cornerLayout->addWidget(helpButton);
+    cornerContainer->setLayout(cornerLayout);
+
+    m_tabWidget->setCornerWidget(cornerContainer, Qt::TopRightCorner);
+
+    // ABOUTダイアログの接続
+    connect(aboutButton, &QPushButton::clicked, this, [this]() {
+        QDialog dialog(this);
+        dialog.setWindowTitle("About Twitch Channel Point Manager");
+        dialog.resize(550, 420);
+        dialog.setStyleSheet("QDialog { background-color: #1D1D22; }");
+
+        QVBoxLayout* layout = new QVBoxLayout(&dialog);
+        layout->setContentsMargins(15, 15, 15, 15);
+        layout->setSpacing(12);
+
+        QLabel* titleLabel = new QLabel(QString("🦊 Twitch Channel Point Manager - %1").arg(APP_VERSION_STRING), &dialog);
+        titleLabel->setStyleSheet("font-weight: bold; font-size: 15px; color: #FFFFFF;");
+        layout->addWidget(titleLabel);
+
+        QTextBrowser* textBrowser = new QTextBrowser(&dialog);
+        textBrowser->setOpenExternalLinks(true);
+        textBrowser->setStyleSheet(R"(
+            QTextBrowser {
+                background-color: #121214;
+                color: #E1E1E6;
+                border: 1px solid #29292E;
+                border-radius: 4px;
+                padding: 10px;
+                font-family: Consolas, Monaco, monospace;
+                font-size: 11px;
+            }
+        )");
+
+        QString licenseHtml = R"(
+            <h3>■ 本システム（TwitchChannelPointManager）本体のライセンス</h3>
+            <p><strong>MIT License</strong><br>
+            Copyright (c) 2026 BLUE000<br><br>
+            Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:<br><br>
+            The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.</p>
+            
+            <hr style="border: 0; border-top: 1px solid #29292E;">
+            
+            <h3>■ サードパーティ製ライブラリのライセンス・権利表記</h3>
+            <p><strong>1. TransCipher Library</strong><br>
+            本システムで使用している暗号化・復号化ライブラリです。<br>
+            Copyright (c) 2026 BLUE000.<br>
+            Licensed under the MIT License.</p>
+            
+            <p><strong>2. Qt ツールキット (Qt6)</strong><br>
+            本システムは <strong>Qt ツールキット (LGPLv3 ライセンス)</strong> を動的にリンクして使用しています。<br>
+            Qt ツールキットの著作権は The Qt Company およびその貢献者に帰属します。<br>
+            詳細およびソースコードについては、以下の公式サイトをご覧ください。<br>
+            <a href="https://www.qt.io" style="color: #2196F3;">https://www.qt.io</a><br>
+            LGPLv3の規約に基づき、ユーザーは独自の変更を加えたQtライブラリをリンクして本アプリを実行する権利が保障されています（動的リンク形式）。</p>
+            
+            <p><strong>3. Google Test (GTest)</strong><br>
+            本システムの自動テストに使用されているテストフレームワークです。<br>
+            Copyright 2008, Google Inc. All rights reserved.<br>
+            Licensed under the 3-Clause BSD License.</p>
+        )";
+
+        textBrowser->setHtml(licenseHtml);
+        layout->addWidget(textBrowser);
+
+        QPushButton* closeButton = new QPushButton("閉じる", &dialog);
+        closeButton->setStyleSheet("background-color: #29292E; color: #FFFFFF; border: 1px solid #35353B; border-radius: 4px; padding: 6px 15px; font-weight: bold;");
+        connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+        layout->addWidget(closeButton, 0, Qt::AlignRight);
+
+        dialog.exec();
+    });
+
+    // オンラインヘルプボタンの接続
     connect(helpButton, &QPushButton::clicked, this, []() {
         QDesktopServices::openUrl(QUrl("https://github.com/BLUE000/TwitchChannelPointManager/blob/master/README.md"));
     });
