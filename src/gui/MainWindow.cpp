@@ -105,7 +105,9 @@ void MainWindow::setupUi()
         QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 3px; }
         QLabel { color: #E1E1E6; }
         QLineEdit { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
-        QSpinBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
+        QSpinBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px 26px 4px 6px; min-height: 26px; }
+        QSpinBox::up-button { width: 20px; subcontrol-origin: border; subcontrol-position: top right; }
+        QSpinBox::down-button { width: 20px; subcontrol-origin: border; subcontrol-position: bottom right; }
         QComboBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
         QPushButton { border: 1px solid #29292E; border-radius: 4px; padding: 5px; color: #FFFFFF; background-color: #29292E; }
         QPushButton:hover { background-color: #35353B; }

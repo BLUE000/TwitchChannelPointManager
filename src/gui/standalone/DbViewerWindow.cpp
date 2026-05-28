@@ -391,7 +391,9 @@ void DbViewerWindow::setupUi()
         QMainWindow { background-color: #121214; }
         QLabel { color: #E1E1E6; font-size: 12px; }
         QLineEdit { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 5px; }
-        QSpinBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 5px; }
+        QSpinBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 5px 26px 5px 6px; min-height: 26px; }
+        QSpinBox::up-button { width: 20px; subcontrol-origin: border; subcontrol-position: top right; }
+        QSpinBox::down-button { width: 20px; subcontrol-origin: border; subcontrol-position: bottom right; }
         QComboBox { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 5px; }
         QCheckBox { color: #E1E1E6; font-size: 13px; }
         QCheckBox::indicator { border: 1px solid #29292E; background-color: #121214; width: 14px; height: 14px; border-radius: 3px; }
