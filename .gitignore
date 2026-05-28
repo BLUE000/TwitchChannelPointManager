@@ -37,3 +37,6 @@ release_*/
 # Distribution folders
 TwitchChannelPointManager_Ver*/
 
+# UI assets and temporary pictures
+pic/
+

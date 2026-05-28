@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QTabWidget>
+#include <QLabel>
 #include <QTableWidget>
 #include <QLineEdit>
 #include <QSpinBox>
@@ -57,6 +59,14 @@ private:
     QPushButton* m_deleteEffectButton;
     QPushButton* m_deleteRewardButton;
 
+    // 統計ログ管理タブ用UI
+    QTabWidget* m_tabWidget;
+    QTableWidget* m_logTableWidget;
+    QLineEdit* m_logSearchEdit;
+    QComboBox* m_cleanupPeriodCombo;
+    QPushButton* m_cleanupButton;
+    QLabel* m_dbSizeLabel;
+
 public:
     explicit DbViewerWindow(QWidget* parent = nullptr);
     ~DbViewerWindow();
@@ -79,6 +89,12 @@ private slots:
     void selectFilePath();
     void selectAudioPath();
     void onEffectTypeChanged(int index);
+
+    // 統計ログ管理用スロット
+    void refreshLogData();
+    void onLogSearchTextChanged(const QString& text);
+    void onCleanupClicked();
+    void updateDbSizeDisplay();
 
 private:
     void setupUi();

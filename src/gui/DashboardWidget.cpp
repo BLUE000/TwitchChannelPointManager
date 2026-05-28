@@ -138,6 +138,9 @@ void DashboardWidget::onPanicClicked()
 void DashboardWidget::onNewLogMessage(LogLevel level, const QString& message)
 {
     m_logListWidget->addItem(message);
+    while (m_logListWidget->count() > 300) {
+        delete m_logListWidget->takeItem(0);
+    }
     m_logListWidget->scrollToBottom();
 
     // 演出回数カウント等が変わるタイミングなのでリフレッシュ

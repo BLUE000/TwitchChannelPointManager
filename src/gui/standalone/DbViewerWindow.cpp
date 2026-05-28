@@ -47,16 +47,19 @@ bool DbViewerWindow::initializeDb(const QString& dbPath)
 
 void DbViewerWindow::setupUi()
 {
-    // メインセントラルウィジェット
-    auto* centralWidget = new QWidget(this);
-    setCentralWidget(centralWidget);
+    m_tabWidget = new QTabWidget(this);
+    setCentralWidget(m_tabWidget);
 
-    auto* mainLayout = new QHBoxLayout(centralWidget);
-    mainLayout->setContentsMargins(10, 10, 10, 10);
+    // ==========================================
+    // タブ1: 🎁 報酬と演出の編集
+    // ==========================================
+    auto* editorTab = new QWidget(m_tabWidget);
+    auto* editorLayout = new QHBoxLayout(editorTab);
+    editorLayout->setContentsMargins(10, 10, 10, 10);
 
     // スプリッターで左右に分割
-    auto* splitter = new QSplitter(Qt::Horizontal, centralWidget);
-    mainLayout->addWidget(splitter);
+    auto* splitter = new QSplitter(Qt::Horizontal, editorTab);
+    editorLayout->addWidget(splitter);
 
     // ==========================================
     // 左ペイン: 一覧 ＆ 検索
@@ -303,6 +306,86 @@ void DbViewerWindow::setupUi()
     splitter->setStretchFactor(0, 3);
     splitter->setStretchFactor(1, 2);
 
+    m_tabWidget->addTab(editorTab, "🎁 報酬と演出の編集");
+
+    // ==========================================
+    // タブ2: 📊 統計ログ管理とDB軽量化
+    // ==========================================
+    auto* logsTab = new QWidget(m_tabWidget);
+    auto* logsLayout = new QVBoxLayout(logsTab);
+    logsLayout->setContentsMargins(15, 15, 15, 15);
+    logsLayout->setSpacing(12);
+
+    // 上部コントロールバー
+    auto* topLogLayout = new QHBoxLayout();
+    
+    auto* logSearchLabel = new QLabel("🔍 ログ検索:", logsTab);
+    logSearchLabel->setStyleSheet("font-weight: bold; font-size: 13px; color: #FFFFFF;");
+    topLogLayout->addWidget(logSearchLabel);
+
+    m_logSearchEdit = new QLineEdit(logsTab);
+    m_logSearchEdit->setPlaceholderText("ユーザー名、報酬名等で絞り込み...");
+    m_logSearchEdit->setStyleSheet("background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 6px;");
+    connect(m_logSearchEdit, &QLineEdit::textChanged, this, &DbViewerWindow::onLogSearchTextChanged);
+    topLogLayout->addWidget(m_logSearchEdit);
+
+    auto* refreshLogBtn = new QPushButton("🔄 ログ更新", logsTab);
+    refreshLogBtn->setStyleSheet("background-color: #29292E; color: #FFFFFF; font-weight: bold; border: 1px solid #35353B; border-radius: 4px; padding: 6px 12px;");
+    connect(refreshLogBtn, &QPushButton::clicked, this, &DbViewerWindow::refreshLogData);
+    topLogLayout->addWidget(refreshLogBtn);
+
+    topLogLayout->addSpacing(20);
+
+    // DBサイズ表示ラベル
+    m_dbSizeLabel = new QLabel("DBファイルサイズ: -", logsTab);
+    m_dbSizeLabel->setStyleSheet("font-weight: bold; color: #2196F3; font-size: 13px; background-color: #1D1D22; border: 1px solid #29292E; border-radius: 4px; padding: 6px 12px;");
+    topLogLayout->addWidget(m_dbSizeLabel);
+
+    logsLayout->addLayout(topLogLayout);
+
+    // ログ表示テーブル
+    m_logTableWidget = new QTableWidget(logsTab);
+    m_logTableWidget->setColumnCount(4);
+    QStringList logHeaders;
+    logHeaders << "ID" << "🎁 報酬名" << "👤 ユーザー名" << "⏱️ 使用日時";
+    m_logTableWidget->setHorizontalHeaderLabels(logHeaders);
+    m_logTableWidget->setAlternatingRowColors(true);
+    m_logTableWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_logTableWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_logTableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_logTableWidget->verticalHeader()->setVisible(false);
+    m_logTableWidget->setStyleSheet(m_tableWidget->styleSheet());
+    m_logTableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_logTableWidget->horizontalHeader()->setStretchLastSection(true);
+    logsLayout->addWidget(m_logTableWidget);
+
+    // 下部クリーンアップツールバー
+    auto* cleanupGroup = new QGroupBox("🗑️ 統計ログのクリーンアップ & データベース最適化", logsTab);
+    cleanupGroup->setStyleSheet("QGroupBox { font-weight: bold; color: #FFFFFF; padding: 15px; }");
+    auto* cleanupLayout = new QHBoxLayout(cleanupGroup);
+    cleanupLayout->setContentsMargins(15, 15, 15, 15);
+    cleanupLayout->setSpacing(12);
+
+    cleanupLayout->addWidget(new QLabel("クリーンアップ対象の期間:", cleanupGroup));
+
+    m_cleanupPeriodCombo = new QComboBox(cleanupGroup);
+    m_cleanupPeriodCombo->addItem("全てのログデータを削除", "all");
+    m_cleanupPeriodCombo->addItem("1週間以上前のログデータを削除", "1week");
+    m_cleanupPeriodCombo->addItem("1ヶ月以上前のログデータを削除", "1month");
+    m_cleanupPeriodCombo->addItem("3ヶ月以上前のログデータを削除", "3months");
+    m_cleanupPeriodCombo->setStyleSheet("background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 6px; min-width: 250px;");
+    cleanupLayout->addWidget(m_cleanupPeriodCombo);
+
+    m_cleanupButton = new QPushButton("🚨 クリーンアップ & DB軽量化 (VACUUM) を実行", cleanupGroup);
+    m_cleanupButton->setStyleSheet("background-color: #D32F2F; color: white; font-weight: bold; padding: 8px 16px; border: none; border-radius: 4px;");
+    connect(m_cleanupButton, &QPushButton::clicked, this, &DbViewerWindow::onCleanupClicked);
+    cleanupLayout->addWidget(m_cleanupButton);
+
+    cleanupLayout->addStretch();
+    logsLayout->addWidget(cleanupGroup);
+
+    m_tabWidget->addTab(logsTab, "📊 統計ログ管理とDB軽量化");
+
     // 全体的なテーマスタイル
     setStyleSheet(R"(
         QMainWindow { background-color: #121214; }
@@ -314,6 +397,9 @@ void DbViewerWindow::setupUi()
         QCheckBox::indicator { border: 1px solid #29292E; background-color: #121214; width: 14px; height: 14px; border-radius: 3px; }
         QCheckBox::indicator:checked { background-color: #2196F3; border-color: #2196F3; }
         QGroupBox { border: 1px solid #29292E; border-radius: 6px; margin-top: 10px; padding-top: 15px; }
+        QTabWidget::pane { border: 1px solid #29292E; background-color: #1D1D22; top: -1px; }
+        QTabBar::tab { background-color: #121214; color: #A9A9B2; border: 1px solid #29292E; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
+        QTabBar::tab:selected { background-color: #1D1D22; color: #FFFFFF; border-bottom-color: #1D1D22; font-weight: bold; }
     )");
 }
 
@@ -414,6 +500,9 @@ void DbViewerWindow::refreshData()
     } else {
         clearForm();
     }
+
+    refreshLogData();
+    updateDbSizeDisplay();
 }
 
 void DbViewerWindow::onSearchTextChanged(const QString& text)
@@ -752,4 +841,139 @@ Reward* DbViewerWindow::findRewardById(const QString& id)
         }
     }
     return nullptr;
+}
+
+void DbViewerWindow::refreshLogData()
+{
+    m_logTableWidget->setRowCount(0);
+    QList<UsageLogEntry> logs = m_db->getUsageLogs();
+
+    int rowCount = 0;
+    for (const auto& log : logs) {
+        m_logTableWidget->insertRow(rowCount);
+
+        // Column 0: ID
+        auto* idItem = new QTableWidgetItem(QString::number(log.id));
+        idItem->setTextAlignment(Qt::AlignCenter);
+        idItem->setForeground(QBrush(QColor("#A9A9B2")));
+        m_logTableWidget->setItem(rowCount, 0, idItem);
+
+        // Column 1: 報酬名
+        auto* nameItem = new QTableWidgetItem(log.rewardName);
+        nameItem->setForeground(QBrush(QColor("#FFFFFF")));
+        nameItem->setFont(QFont("Arial", 9, QFont::Bold));
+        m_logTableWidget->setItem(rowCount, 1, nameItem);
+
+        // Column 2: ユーザー名
+        auto* userItem = new QTableWidgetItem(log.username);
+        userItem->setForeground(QBrush(QColor("#2196F3")));
+        m_logTableWidget->setItem(rowCount, 2, userItem);
+
+        // Column 3: 使用日時
+        auto* timeItem = new QTableWidgetItem(log.timestamp);
+        timeItem->setForeground(QBrush(QColor("#4CAF50")));
+        m_logTableWidget->setItem(rowCount, 3, timeItem);
+
+        rowCount++;
+    }
+
+    m_logTableWidget->resizeColumnToContents(0);
+    m_logTableWidget->resizeColumnToContents(2);
+    m_logTableWidget->resizeColumnToContents(3);
+    m_logTableWidget->setColumnWidth(1, 250);
+
+    // フィルタの適用
+    onLogSearchTextChanged(m_logSearchEdit->text());
+}
+
+void DbViewerWindow::onLogSearchTextChanged(const QString& text)
+{
+    for (int i = 0; i < m_logTableWidget->rowCount(); ++i) {
+        bool showRow = false;
+        if (text.isEmpty()) {
+            showRow = true;
+        } else {
+            auto* nameItem = m_logTableWidget->item(i, 1);
+            auto* userItem = m_logTableWidget->item(i, 2);
+            if ((nameItem && nameItem->text().contains(text, Qt::CaseInsensitive)) ||
+                (userItem && userItem->text().contains(text, Qt::CaseInsensitive))) {
+                showRow = true;
+            }
+        }
+        m_logTableWidget->setRowHidden(i, !showRow);
+    }
+}
+
+void DbViewerWindow::updateDbSizeDisplay()
+{
+    QString dbPath = m_db->getDatabasePath();
+    if (dbPath.isEmpty()) {
+        m_dbSizeLabel->setText("DBファイルサイズ: 不明");
+        return;
+    }
+    
+    QFileInfo fileInfo(dbPath);
+    if (!fileInfo.exists()) {
+        m_dbSizeLabel->setText("DBファイルサイズ: 存在しません");
+        return;
+    }
+    
+    double sizeInMb = (double)fileInfo.size() / (1024.0 * 1024.0);
+    m_dbSizeLabel->setText(QString("DBファイルサイズ: %1 MB").arg(sizeInMb, 0, 'f', 2));
+}
+
+void DbViewerWindow::onCleanupClicked()
+{
+    QString period = m_cleanupPeriodCombo->currentData().toString();
+    QString confirmMsg;
+    QString targetDateStr;
+
+    if (period == "all") {
+        confirmMsg = "本当に『すべての統計ログデータ』を削除しますか？\n(注意: 報酬の設定データ自体は削除されません。)";
+    } else if (period == "1week") {
+        confirmMsg = "1週間以上前の統計ログデータをクリーンアップしますか？";
+        targetDateStr = QDateTime::currentDateTime().addDays(-7).toString("yyyy-MM-dd");
+    } else if (period == "1month") {
+        confirmMsg = "1ヶ月以上前の統計ログデータをクリーンアップしますか？";
+        targetDateStr = QDateTime::currentDateTime().addMonths(-1).toString("yyyy-MM-dd");
+    } else if (period == "3months") {
+        confirmMsg = "3ヶ月以上前の統計ログデータをクリーンアップしますか？";
+        targetDateStr = QDateTime::currentDateTime().addMonths(-3).toString("yyyy-MM-dd");
+    }
+
+    auto result = QMessageBox::question(this, "クリーンアップの確認", confirmMsg, QMessageBox::Yes | QMessageBox::No);
+    if (result != QMessageBox::Yes) return;
+
+    QString dbPath = m_db->getDatabasePath();
+    qint64 beforeSize = QFileInfo(dbPath).size();
+
+    bool success = false;
+    if (period == "all") {
+        success = m_db->clearUsageLogs();
+    } else {
+        success = m_db->deleteUsageLogsBefore(targetDateStr);
+    }
+
+    if (!success) {
+        QMessageBox::critical(this, "クリーンアップエラー", "ログデータの削除に失敗しました。");
+        return;
+    }
+
+    // SQLiteの最適化・サイズ圧縮
+    m_db->vacuum();
+
+    qint64 afterSize = QFileInfo(dbPath).size();
+    double savedKb = (double)(beforeSize - afterSize) / 1024.0;
+
+    QString infoMsg = "統計ログのクリーンアップが正常に完了しました。\n";
+    if (savedKb > 0) {
+        infoMsg += QString("データベースファイルが %1 KB 軽量化されました！").arg(savedKb, 0, 'f', 1);
+    } else {
+        infoMsg += "データベースファイルは既に最適化されています。";
+    }
+
+    QMessageBox::information(this, "クリーンアップ完了", infoMsg);
+
+    refreshLogData();
+    updateDbSizeDisplay();
 }

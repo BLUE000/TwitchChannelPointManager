@@ -304,3 +304,65 @@ void TwitchAuth::fetchCustomRewards(const QString& accessToken, const QString& c
         emit customRewardsFetched(rewards);
     });
 }
+
+void TwitchAuth::refreshAccessToken(const QString& refreshToken, const QString& broadcasterId)
+{
+    LOG_INFO("Refreshing Twitch OAuth access token using refresh token...");
+
+    QNetworkAccessManager* manager = m_networkManager ? m_networkManager : new QNetworkAccessManager(this);
+    QUrl tokenUrl("https://id.twitch.tv/oauth2/token");
+    QNetworkRequest request(tokenUrl);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+
+    QUrlQuery postData;
+    postData.addQueryItem("client_id", m_clientId);
+    postData.addQueryItem("client_secret", m_clientSecret);
+    postData.addQueryItem("refresh_token", refreshToken);
+    postData.addQueryItem("grant_type", "refresh_token");
+
+    QNetworkReply* reply = manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());
+
+    connect(reply, &QNetworkReply::finished, [this, reply, manager, refreshToken, broadcasterId]() {
+        reply->deleteLater();
+        if (manager != m_networkManager) {
+            manager->deleteLater();
+        }
+
+        if (reply->error() != QNetworkReply::NoError) {
+            QByteArray errorData = reply->readAll();
+            LOG_ERROR("HTTP error refreshing access token: " + reply->errorString() + " - " + errorData);
+            emit authFailed("トークンの再取得に失敗しました: " + reply->errorString());
+            return;
+        }
+
+        QByteArray responseData = reply->readAll();
+        QJsonParseError parseError;
+        QJsonDocument doc = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (doc.isNull()) {
+            LOG_ERROR("JSON parsing failed for token refresh response: " + parseError.errorString());
+            emit authFailed("トークン再取得レスポンスのパースに失敗しました。");
+            return;
+        }
+
+        QJsonObject obj = doc.object();
+        m_accessToken = obj.value("access_token").toString();
+        
+        // Twitchが新しいリフレッシュトークンを返した場合は更新、そうでなければ古いものを維持
+        QString newRefreshToken = obj.value("refresh_token").toString();
+        if (!newRefreshToken.isEmpty()) {
+            m_refreshToken = newRefreshToken;
+        } else {
+            m_refreshToken = refreshToken;
+        }
+
+        if (m_accessToken.isEmpty()) {
+            LOG_ERROR("Access token is empty in refresh response.");
+            emit authFailed("アクセストークンが空でした。");
+            return;
+        }
+
+        LOG_INFO("Twitch OAuth access token successfully refreshed!");
+        emit authSuccess(m_accessToken, m_refreshToken, broadcasterId);
+    });
+}

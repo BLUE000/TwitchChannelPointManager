@@ -201,6 +201,14 @@ void TwitchEventSub::registerSubscription()
     connect(reply, &QNetworkReply::finished, [this, reply]() {
         reply->deleteLater();
 
+        int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (statusCode == 401) {
+            LOG_WARN("Twitch EventSub API returned 401 Unauthorized. Access token might be expired. Triggering tokenExpired signal.");
+            disconnectFromServer();
+            emit tokenExpired();
+            return;
+        }
+
         if (reply->error() != QNetworkReply::NoError) {
             QByteArray errorData = reply->readAll();
             LOG_ERROR("Failed to register EventSub subscription API: " + reply->errorString() + " - " + errorData);

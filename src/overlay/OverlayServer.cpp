@@ -15,6 +15,8 @@
 #include <QCoreApplication>
 #include <QTextStream>
 #include <QHttpServerRequest>
+#include <QHttpServerResponder>
+#include <QHttpHeaders>
 #include <QTimer>
 #include <QUrlQuery>
 #include <QJsonArray>
@@ -242,7 +244,7 @@ void OverlayServer::setupHttpRoutes()
     // アセット配信用ルート
     // NOTE: <arg> を使用。<path> はルートパス全体を取得するQtの挙動があり、
     //       UUIDファイル名がスラッシュを含まないため <arg> で正確にマッチする。
-    m_httpServer->route("/assets/<arg>", [this](const QString& rawFilename) {
+    m_httpServer->route("/assets/<arg>", [this](const QString& rawFilename, QHttpServerResponder& responder) {
         // 先頭スラッシュなど余分な文字を除去して正規化
         QString filename = rawFilename;
         while (filename.startsWith('/')) {
@@ -253,33 +255,50 @@ void OverlayServer::setupHttpRoutes()
         QString realPath = m_fileManager->getRealPath(filename);
         if (realPath.isEmpty()) {
             LOG_WARN("Asset not found in registry: " + filename);
-            return QHttpServerResponse(QHttpServerResponse::StatusCode::NotFound);
+            responder.write(QHttpServerResponder::StatusCode::NotFound);
+            return;
         }
 
-        QFile file(realPath);
-        if (!file.open(QIODevice::ReadOnly)) {
-            LOG_ERROR("Failed to open real asset file for serving: " + realPath);
-            return QHttpServerResponse(QHttpServerResponse::StatusCode::InternalServerError);
-        }
-
-        QByteArray fileData = file.readAll();
-        file.close();
-
-        // HTML/htm アセットの場合は配信前にサニタイズ処理を通す
+        // HTML/htm アセットの場合はサニタイズ処理のためメモリ上に一旦展開
         QString mime = getMimeType(realPath);
         if (mime == "text/html" || realPath.endsWith(".html", Qt::CaseInsensitive) || realPath.endsWith(".htm", Qt::CaseInsensitive)) {
+            QFile file(realPath);
+            if (!file.open(QIODevice::ReadOnly)) {
+                LOG_ERROR("Failed to open real HTML asset file for serving: " + realPath);
+                responder.write(QHttpServerResponder::StatusCode::InternalServerError);
+                return;
+            }
+            QByteArray fileData = file.readAll();
+            file.close();
+
             QString rawHtml = QString::fromUtf8(fileData);
             QString sanitizedHtml = HTMLSanitizer::sanitizeHtml(rawHtml);
             fileData = sanitizedHtml.toUtf8();
+
+            QHttpHeaders headers;
+            headers.append("Content-Type", mime.toUtf8());
+            headers.append("Access-Control-Allow-Origin", "*");
+            headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
+            responder.write(fileData, headers, QHttpServerResponder::StatusCode::Ok);
+            return;
         }
 
-        // レスポンスの構築（CORS ヘッダー & キャッシュ防止ヘッダー付与）
-        QHttpServerResponse response(mime.toUtf8(), fileData);
+        // 画像、動画、効果音アセットは大容量の可能性があるため、QHttpServerResponderを用いてストリーム配信
+        auto* file = new QFile(realPath);
+        if (!file->open(QIODevice::ReadOnly)) {
+            LOG_ERROR("Failed to open real asset file for streaming: " + realPath);
+            delete file;
+            responder.write(QHttpServerResponder::StatusCode::InternalServerError);
+            return;
+        }
+
         QHttpHeaders headers;
+        headers.append("Content-Type", mime.toUtf8());
         headers.append("Access-Control-Allow-Origin", "*");
         headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
-        response.setHeaders(headers);
-        return response;
+
+        // QFileの所有権は QHttpServerResponder が引き受け、配信完了時に自動で削除される
+        responder.write(file, headers, QHttpServerResponder::StatusCode::Ok);
     });
 
     // テスト兼OBS登録用のデフォルトオーバーレイHTMLページ

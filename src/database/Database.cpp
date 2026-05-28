@@ -314,6 +314,62 @@ bool Database::clearUsageLogs()
     return true;
 }
 
+QList<UsageLogEntry> Database::getUsageLogs()
+{
+    QList<UsageLogEntry> logs;
+    QSqlQuery query(m_db);
+    QString sql = R"(
+        SELECT l.id, l.reward_id, r.name, l.username, l.timestamp 
+        FROM usage_logs l 
+        LEFT JOIN rewards r ON l.reward_id = r.id 
+        ORDER BY l.timestamp DESC
+    )";
+    if (query.exec(sql)) {
+        while (query.next()) {
+            UsageLogEntry entry;
+            entry.id = query.value(0).toInt();
+            entry.rewardId = query.value(1).toString();
+            entry.rewardName = query.value(2).toString();
+            if (entry.rewardName.isEmpty()) {
+                entry.rewardName = QString("削除された報酬 (%1)").arg(entry.rewardId);
+            }
+            entry.username = query.value(3).toString();
+            entry.timestamp = query.value(4).toString();
+            logs.append(entry);
+        }
+    } else {
+        LOG_ERROR("Failed to fetch usage logs: " + query.lastError().text());
+    }
+    return logs;
+}
+
+bool Database::deleteUsageLogsBefore(const QString& dateStr)
+{
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM usage_logs WHERE date(timestamp) < date(:date)");
+    query.bindValue(":date", dateStr);
+    if (!query.exec()) {
+        LOG_ERROR("Failed to delete usage logs: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+bool Database::vacuum()
+{
+    QSqlQuery query(m_db);
+    if (!query.exec("VACUUM")) {
+        LOG_ERROR("Failed to VACUUM database: " + query.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+QString Database::getDatabasePath() const
+{
+    return m_db.databaseName();
+}
+
 bool Database::saveSetting(const QString& key, const QString& value)
 {
     QSqlQuery query(m_db);

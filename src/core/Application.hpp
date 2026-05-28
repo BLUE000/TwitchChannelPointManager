@@ -50,6 +50,7 @@ public:
 private slots:
     // Twitch のイベント受信時のディスパッチスロット
     void onTwitchPointRedeemed(const QString& rewardId, const QString& username, const QDateTime& timestamp);
+    void onTwitchTokenExpired();
 
 private:
     void setupSignalConnections();

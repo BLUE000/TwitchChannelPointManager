@@ -45,6 +45,7 @@ signals:
     void channelPointRedeemed(const QString& rewardId, const QString& username, const QDateTime& timestamp);
     void subscriptionSuccess();
     void subscriptionFailed(const QString& error);
+    void tokenExpired();
 
 private slots:
     void onConnected();

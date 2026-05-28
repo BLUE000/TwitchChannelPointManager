@@ -415,3 +415,21 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 ```
+
+## 5. パフォーマンス・メモリ管理の詳細設計
+
+### 5.1 運行ログ（リアルタイムログ）のクランプ制限処理
+* **処理仕様**:
+  - `Logger::newLogMessage` シグナルを受け取る `DashboardWidget::onNewLogMessage` において、`QListWidget` に追加されたアイテム数が **300件** を超えた場合、インデックス `0`（最古）のアイテムを `takeItem` で取り出し、明示的に `delete` してメモリを完全に解放する。
+  - ループ構造を用いて、300件以下になるまでデキュー・メモリ解放を繰り返すことで、瞬間的なログの大量受信にも安全に対応する。
+
+### 5.2 大容量アセットのストリーム（チャンク配信）処理
+* **処理仕様**:
+  - `OverlayServer::setupHttpRoutes` において、アセット要求（`/assets/<arg>` や `/ranking/<arg>`）の `QHttpServer` ルートハンドラをストリーム方式に書き換える。
+  - `QFile::readAll()` を使った一括展開は行わず、ファイルを `QIODevice::ReadOnly` でオープン後、一定サイズ（例: 64KB や 1MB 単位）のバッファで読み出し、`QHttpServerResponse` で逐次チャンク配信（あるいはストリーミング用のレスポンスオブジェクト）を行うか、オンデマンドなファイルI/Oを用いてQHttpServerにデータを供給する。
+
+### 5.3 データベースビューワー（TwitchDbViewer）の拡張設計
+* **処理仕様**:
+  - スタンドアロンの別プロセスツール `TwitchDbViewer` 内の `DbViewerWindow` を拡張し、SQLiteデータベース上の `usage_logs` テーブルの内容を確認・フィルタリングするUIを新しく追加する。
+  - 「古いログデータのクリーンアップ」ボタンを配置し、`DELETE FROM usage_logs WHERE timestamp < :cutoff` クエリを実行して一括削除を可能にする。
+  - クリーンアップ後は、SQLite データベースの物理サイズを縮小してファイルシステム上の空き容量を回収するため、**`VACUUM;`** コマンドを実行する。

@@ -76,7 +76,7 @@ bool Config::saveSecureString(const QString& key, const QString& plainText, cons
 {
     if (plainText.isEmpty()) {
         set(key, "");
-        m_secureCache.remove(key);
+        m_secureCache.remove(key + "|" + secretKey);
         return true;
     }
 
@@ -94,15 +94,16 @@ bool Config::saveSecureString(const QString& key, const QString& plainText, cons
     set(key, QString::fromUtf8(base64Data));
     
     // キャッシュを更新
-    m_secureCache.insert(key, plainText);
+    m_secureCache.insert(key + "|" + secretKey, plainText);
     return true;
 }
 
 QString Config::loadSecureString(const QString& key, const QString& secretKey, const QString& defaultValue) const
 {
-    // メモリキャッシュにあれば即座に返す (WebAPIの遅延回避)
-    if (m_secureCache.contains(key)) {
-        return m_secureCache.value(key);
+    // メモリキャッシュにあれば即座に返す (キーとシークレットキーの組み合わせで厳密管理)
+    QString cacheKey = key + "|" + secretKey;
+    if (m_secureCache.contains(cacheKey)) {
+        return m_secureCache.value(cacheKey);
     }
 
     QVariant val = get(key);
@@ -122,8 +123,8 @@ QString Config::loadSecureString(const QString& key, const QString& secretKey, c
 
     QString decryptedString = QString::fromUtf8(result.data().constData());
     
-    // キャッシュに保存して次回以降は通信をスキップ
-    m_secureCache.insert(key, decryptedString);
+    // キャッシュに保存して次回以降は復号演算をスキップ
+    m_secureCache.insert(cacheKey, decryptedString);
     
     return decryptedString;
 }

@@ -13,6 +13,14 @@ struct UserUsageStat {
     int count;
 };
 
+struct UsageLogEntry {
+    int id;
+    QString rewardId;
+    QString rewardName;
+    QString username;
+    QString timestamp;
+};
+
 class Database : public QObject {
     Q_OBJECT
 private:
@@ -38,6 +46,10 @@ public:
     QList<QPair<QString, int>> getRanking(int periodIndex = 0);
     QList<UserUsageStat> getUserUsageStatistics(int periodIndex = 0);
     bool clearUsageLogs();
+    QList<UsageLogEntry> getUsageLogs();
+    bool deleteUsageLogsBefore(const QString& dateStr);
+    bool vacuum();
+    QString getDatabasePath() const;
 
     // 汎用設定（Settings）テーブルの読み書き
     bool saveSetting(const QString& key, const QString& value);

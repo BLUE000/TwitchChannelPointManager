@@ -43,6 +43,9 @@ public:
     // チャンネルポイント一覧の動的取得
     void fetchCustomRewards(const QString& accessToken, const QString& clientId, const QString& broadcasterId);
 
+    // リフレッシュトークンを用いたアクセストークンの再取得（リアクティブ更新）
+    void refreshAccessToken(const QString& refreshToken, const QString& broadcasterId);
+
 signals:
     void authSuccess(const QString& accessToken, const QString& refreshToken, const QString& broadcasterId);
     void authFailed(const QString& errorMessage);

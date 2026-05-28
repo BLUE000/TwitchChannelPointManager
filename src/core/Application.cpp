@@ -158,6 +158,10 @@ void Application::setupSignalConnections()
         
         m_twitchEventSub->connectToServer(access, clientId, broadcasterId);
     });
+
+    // 6. Twitch EventSub トークン失効検知 -> 自動更新をトリガー
+    connect(m_twitchEventSub.get(), &TwitchEventSub::tokenExpired,
+            this, &Application::onTwitchTokenExpired);
 }
 
 void Application::onTwitchPointRedeemed(const QString& rewardId, const QString& username, const QDateTime& timestamp)
@@ -175,4 +179,19 @@ void Application::onTwitchPointRedeemed(const QString& rewardId, const QString& 
         LOG_WARN(QString("Rejecting redemption for reward '%1' from user '%2'. Reason: %3")
             .arg(rewardId).arg(username).arg(rejectReason));
     }
+}
+
+void Application::onTwitchTokenExpired()
+{
+    LOG_INFO("Twitch token expired. Attempting reactive token refresh...");
+    QString secretKey = "twitch_overlay_secret_key_2026";
+    QString refreshToken = m_config->loadSecureString("twitch_refresh_token", secretKey);
+    QString broadcasterId = m_config->get("twitch_broadcaster_id").toString();
+
+    if (refreshToken.isEmpty()) {
+        LOG_ERROR("Cannot refresh Twitch access token: refresh token is missing. Please authenticate again in settings.");
+        return;
+    }
+
+    m_twitchAuth->refreshAccessToken(refreshToken, broadcasterId);
 }
