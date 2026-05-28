@@ -364,13 +364,38 @@ void RewardEditorWidget::onSaveClicked()
 
     saveCurrentEffectToBuffer();
 
-    // 全てのエフェクトに何らかの演出が設定されているか検証
+    // 全てのエフェクトが完全に空（未設定に戻したい）状態かを検証
+    bool allEmpty = true;
+    for (const auto& eff : m_editingEffects) {
+        if (!eff.filePath.isEmpty() || !eff.audioPath.isEmpty() || !eff.text.isEmpty()) {
+            allEmpty = false;
+            break;
+        }
+    }
+
+    if (allEmpty) {
+        auto result = QMessageBox::question(this, "確認", 
+            "演出ファイルおよびテキストがすべて空です。\nこの報酬の演出設定を削除して「未設定」に戻しますか？", 
+            QMessageBox::Yes | QMessageBox::No);
+        if (result == QMessageBox::Yes) {
+            if (m_app->rewardManager()->deleteReward(rewardId)) {
+                QMessageBox::information(this, "成功", "演出設定を削除し、未設定に戻しました。");
+                onNewClicked();
+                reloadRewardsList();
+            } else {
+                QMessageBox::critical(this, "失敗", "設定の削除に失敗しました。");
+            }
+        }
+        return;
+    }
+
+    // 演出スロットが複数ある場合で、一部だけが空になっている場合の検証
     for (int i = 0; i < m_editingEffects.size(); ++i) {
         const auto& eff = m_editingEffects[i];
         if (eff.filePath.isEmpty() && eff.audioPath.isEmpty() && eff.text.isEmpty()) {
             QString msg = (eff.type == "script") 
                 ? QString("演出 %1 のスクリプトファイルを選択してください。").arg(i + 1)
-                : QString("演出 %1 の画像/動画、効果音、または表示文字列のいずれかを入力してください。").arg(i + 1);
+                : QString("演出 %1 の画像/動画、効果音、または表示文字列のいずれかを入力してください。\n（すべての演出を空にして保存すると未設定に戻せます）").arg(i + 1);
             QMessageBox::warning(this, "演出効果未設定", msg);
             return;
         }

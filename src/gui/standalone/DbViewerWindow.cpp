@@ -707,6 +707,32 @@ void DbViewerWindow::onSaveClicked()
         eff.animation = m_animationCombo->currentData().toString();
     }
 
+    // 全てのエフェクトが完全に空（未設定に戻したい）状態かを検証
+    bool allEmpty = true;
+    for (const auto& eff : r->effects) {
+        if (!eff.filePath.isEmpty() || !eff.audioPath.isEmpty() || !eff.text.isEmpty()) {
+            allEmpty = false;
+            break;
+        }
+    }
+
+    if (allEmpty) {
+        auto result = QMessageBox::question(this, "確認", 
+            "演出ファイルおよびテキストがすべて空です。\nこの報酬の演出設定をデータベースから削除し、未設定に戻しますか？", 
+            QMessageBox::Yes | QMessageBox::No);
+        if (result == QMessageBox::Yes) {
+            if (m_db->deleteReward(r->id)) {
+                QMessageBox::information(this, "成功", "演出設定を削除し、未設定に戻しました。");
+                m_selectedRewardId.clear();
+                refreshData();
+                clearForm();
+            } else {
+                QMessageBox::critical(this, "失敗", "設定の削除に失敗しました。");
+            }
+        }
+        return;
+    }
+
     // データベースへの保存実行
     if (m_db->saveReward(*r)) {
         QMessageBox::information(this, "保存成功", "変更がデータベースへ正常に保存されました。");
