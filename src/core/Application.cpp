@@ -8,6 +8,7 @@
 #include "../overlay/OverlayServer.hpp"
 #include "../twitch/TwitchAuth.hpp"
 #include "../twitch/TwitchEventSub.hpp"
+#include <QTimer>
 
 Application::Application(QObject* parent)
     : QObject(parent)
@@ -74,18 +75,29 @@ bool Application::initialize(const QString& dbPath, const QString& configPath)
     m_twitchAuth = std::make_unique<TwitchAuth>(clientId, decryptedSecret, 28082, this);
     m_twitchEventSub = std::make_unique<TwitchEventSub>(this);
 
+    m_tokenRefreshTimer = new QTimer(this);
+    m_tokenRefreshTimer->setInterval(7200000); // 2時間 (7200000ミリ秒)
+    connect(m_tokenRefreshTimer, &QTimer::timeout, this, &Application::onPeriodicTokenRefreshTriggered);
+
+    m_retryTimer = new QTimer(this);
+    m_retryTimer->setInterval(300000); // 5分 (300000ミリ秒)
+    m_retryTimer->setSingleShot(true);
+    connect(m_retryTimer, &QTimer::timeout, this, &Application::onPeriodicTokenRefreshTriggered);
+
+    m_retryCount = 0;
+
     // 10. 全マネージャー間のシグナル・スロット接続の確立
     setupSignalConnections();
 
     m_isInitialized = true;
     LOG_INFO("Core Application system successfully initialized and online.");
 
-    // 11. すでに認可情報がある場合は、起動時にEventSubへ自動接続する
-    QString accessToken = m_config->loadSecureString("twitch_access_token", secretKey);
+    // 11. すでに認可情報がある場合は、起動時にバックグラウンドでトークンをリフレッシュする
+    QString refreshToken = m_config->loadSecureString("twitch_refresh_token", secretKey);
     QString broadcasterId = m_config->get("twitch_broadcaster_id").toString();
-    if (!accessToken.isEmpty() && !broadcasterId.isEmpty()) {
-        LOG_INFO("Saved Twitch credentials found at startup. Automatically establishing EventSub WebSocket connection.");
-        m_twitchEventSub->connectToServer(accessToken, clientId, broadcasterId);
+    if (!refreshToken.isEmpty() && !broadcasterId.isEmpty()) {
+        LOG_INFO("Saved Twitch credentials found at startup. Performing background proactive token refresh...");
+        m_twitchAuth->refreshAccessToken(refreshToken, broadcasterId);
     }
 
     return true;
@@ -141,25 +153,15 @@ void Application::setupSignalConnections()
     connect(m_overlayServer.get(), &OverlayServer::effectFinished,
             m_queueManager.get(), &QueueManager::onEffectCompleted);
 
-    // 5. Twitch 認証成功 -> 暗号化して設定ファイルに自動保管するセキュア処理
-    connect(m_twitchAuth.get(), &TwitchAuth::authSuccess, [this](const QString& access, const QString& refresh, const QString& broadcasterId) {
-        LOG_INFO("Received successful OAuth token exchange. Saving securely using TransCipher-Dist...");
-        QString secretKey = "twitch_overlay_secret_key_2026";
-        
-        m_config->saveSecureString("twitch_access_token", access, secretKey);
-        m_config->saveSecureString("twitch_refresh_token", refresh, secretKey);
-        m_config->set("twitch_broadcaster_id", broadcasterId); // 自動取得した配信者IDを設定に保存！
-        m_config->save(); // ファイル書き込み保存
+    // 5. Twitch 認証成功 -> 暗号化して設定ファイルに自動保管し、タイマー起動
+    connect(m_twitchAuth.get(), &TwitchAuth::authSuccess,
+            this, &Application::onTwitchAuthSuccess);
 
-        LOG_INFO("Credentials stored safely. Automatically establishing EventSub WebSocket connection.");
-        
-        // トークン情報を用いてEventSubへ自動接続
-        QString clientId = m_config->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
-        
-        m_twitchEventSub->connectToServer(access, clientId, broadcasterId);
-    });
+    // 6. Twitch 認証失敗（自動リフレッシュ失敗判定付き） -> ログ記録・リトライ処理
+    connect(m_twitchAuth.get(), &TwitchAuth::authFailedWithError,
+            this, &Application::onTwitchAuthFailed);
 
-    // 6. Twitch EventSub トークン失効検知 -> 自動更新をトリガー
+    // 7. Twitch EventSub トークン失効検知 -> 自動更新をトリガー
     connect(m_twitchEventSub.get(), &TwitchEventSub::tokenExpired,
             this, &Application::onTwitchTokenExpired);
 }
@@ -194,4 +196,69 @@ void Application::onTwitchTokenExpired()
     }
 
     m_twitchAuth->refreshAccessToken(refreshToken, broadcasterId);
+}
+
+void Application::onPeriodicTokenRefreshTriggered()
+{
+    LOG_INFO("Triggering background Twitch OAuth access token refresh...");
+    QString secretKey = "twitch_overlay_secret_key_2026";
+    QString refreshToken = m_config->loadSecureString("twitch_refresh_token", secretKey);
+    QString broadcasterId = m_config->get("twitch_broadcaster_id").toString();
+
+    if (refreshToken.isEmpty()) {
+        LOG_WARN("Cannot perform background token refresh: refresh token is missing.");
+        return;
+    }
+
+    m_twitchAuth->refreshAccessToken(refreshToken, broadcasterId);
+}
+
+void Application::onTwitchAuthSuccess(const QString& access, const QString& refresh, const QString& broadcasterId)
+{
+    LOG_INFO("Received successful OAuth token exchange. Saving securely using TransCipher-Dist...");
+    QString secretKey = "twitch_overlay_secret_key_2026";
+    
+    m_config->saveSecureString("twitch_access_token", access, secretKey);
+    m_config->saveSecureString("twitch_refresh_token", refresh, secretKey);
+    m_config->set("twitch_broadcaster_id", broadcasterId); // 自動取得した配信者IDを設定に保存！
+    m_config->save(); // ファイル書き込み保存
+
+    LOG_INFO("Credentials stored safely. Automatically establishing EventSub WebSocket connection.");
+    
+    // トークン情報を用いてEventSubへ自動接続
+    QString clientId = m_config->get("twitch_client_id", TWITCH_GLOBAL_CLIENT_ID).toString();
+    m_twitchEventSub->connectToServer(access, clientId, broadcasterId);
+
+    // タイマーのリセットと開始
+    m_retryCount = 0;
+    m_retryTimer->stop();
+    m_tokenRefreshTimer->start(); // 2時間後に定期的リフレッシュ
+}
+
+void Application::onTwitchAuthFailed(const QString& errorMessage, bool isFatal)
+{
+    LOG_ERROR(QString("Twitch OAuth background refresh failed: %1 (isFatal: %2)").arg(errorMessage).arg(isFatal ? "TRUE" : "FALSE"));
+
+    if (isFatal) {
+        // 恒久的エラー
+        m_tokenRefreshTimer->stop();
+        m_retryTimer->stop();
+        m_retryCount = 0;
+        
+        LOG_ERROR("Fatal auth error detected. Stopping all token refresh timers.");
+        emit authFailedFatal("Twitchとの連携認証が失効しているか、接続設定が間違っています。システム設定タブから再連携を行ってください。 (" + errorMessage + ")");
+    } else {
+        // 一時的エラー
+        m_retryCount++;
+        if (m_retryCount < 5) {
+            LOG_WARN(QString("Temporary auth error. Scheduling retry #%1 in 5 minutes...").arg(m_retryCount));
+            m_retryTimer->start(); // 5分後にリトライ
+        } else {
+            // リトライの上限に達した場合
+            m_tokenRefreshTimer->stop();
+            m_retryTimer->stop();
+            LOG_ERROR("Background token refresh exceeded maximum retry limits. Stopping automatic refresh until manual intervention or restart.");
+            emit authFailedFatal("一時的なネットワーク接続エラーが継続したため、トークンの自動更新を停止しました。ネットワーク環境を確認してください。");
+        }
+    }
 }

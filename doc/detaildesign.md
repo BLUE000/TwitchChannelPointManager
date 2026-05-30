@@ -5,36 +5,52 @@
 ### 1.1 Core モジュール
 
 #### `core/Application`
-アプリケーション全体の起動、ライフサイクル、主要マネージャーの初期化・終了処理を行います。
+アプリケーション全体の起動、ライフサイクル、主要マネージャーの初期化・終了処理、および Twitch OAuthトークンの自動ライフサイクル（リフレッシュ）を管理します。
 
 ```cpp
 #pragma once
-#include <QApplication>
+#include <QObject>
 #include <memory>
 
-class MainWindow;
 class Database;
 class Config;
 class RewardManager;
 class QueueManager;
+class FileManager;
 class OverlayServer;
+class TwitchAuth;
+class TwitchEventSub;
 
-class Application : public QApplication {
+class Application : public QObject {
     Q_OBJECT
 private:
     std::unique_ptr<Database> m_database;
     std::unique_ptr<Config> m_config;
     std::unique_ptr<RewardManager> m_rewardManager;
     std::unique_ptr<QueueManager> m_queueManager;
+    std::unique_ptr<FileManager> m_fileManager;
     std::unique_ptr<OverlayServer> m_overlayServer;
-    std::unique_ptr<MainWindow> m_mainWindow;
+    std::unique_ptr<TwitchAuth> m_twitchAuth;
+    std::unique_ptr<TwitchEventSub> m_twitchEventSub;
+    
+    QTimer* m_tokenRefreshTimer;    // バックグラウンド定期的リフレッシュタイマー
+    QTimer* m_retryTimer;           // 一時的エラー時のリトライ用タイマー
+    int m_retryCount;               // 一時的エラー時のリトライ回数カウンター
+    bool m_isInitialized;
 
 public:
-    Application(int& argc, char** argv);
+    explicit Application(QObject* parent = nullptr);
     ~Application();
 
-    bool initialize();
+    bool initialize(const QString& dbPath = "data.db", const QString& configPath = "config.json");
     void shutdown();
+
+private slots:
+    void onTwitchPointRedeemed(const QString& rewardId, const QString& username, const QDateTime& timestamp);
+    void onTwitchTokenExpired();
+    void onPeriodicTokenRefreshTriggered();
+    void onTwitchAuthSuccess(const QString& access, const QString& refresh, const QString& broadcasterId);
+    void onTwitchAuthFailed(const QString& errorMessage, bool isFatal);
 };
 ```
 
@@ -111,19 +127,36 @@ private:
     int m_callbackPort;
     QString m_accessToken;
     QString m_refreshToken;
+    QString m_clientId;
+    QString m_clientSecret;
+    QNetworkAccessManager* m_networkManager;
 
 public:
-    explicit TwitchAuth(int port = 28082, QObject* parent = nullptr);
+    explicit TwitchAuth(const QString& clientId, const QString& clientSecret, int port = 28082, QObject* parent = nullptr);
+    ~TwitchAuth();
     
+    void setNetworkAccessManager(QNetworkAccessManager* manager);
+    void setCredentials(const QString& clientId, const QString& clientSecret);
     void startAuthFlow(); // 外部ブラウザを起動
     void stopLoopbackServer();
 
+    QString accessToken() const;
+    QString refreshToken() const;
+
+    void fetchCustomRewards(const QString& accessToken, const QString& clientId, const QString& broadcasterId);
+    void refreshAccessToken(const QString& refreshToken, const QString& broadcasterId);
+
 signals:
-    void authSuccess(const QString& accessToken, const QString& refreshToken);
+    void authSuccess(const QString& accessToken, const QString& refreshToken, const QString& broadcasterId);
     void authFailed(const QString& errorMessage);
+    void authFailedWithError(const QString& errorMessage, bool isFatal); // エラー種類（一時的か恒久的か）を判定する新規シグナル
+    void customRewardsFetched(const QJsonArray& rewards);
+    void customRewardsFetchFailed(const QString& errorMessage);
 
 private slots:
     void handleIncomingConnection();
+    void readClientData();
+    void exchangeCodeForToken(const QString& authCode);
 };
 ```
 
@@ -356,6 +389,85 @@ public:
      |                        |                          |                          |                          |                        |
      |                        |                          |-- playNext() ----------- |                          |                        |
      |                        |                          |   (次のキュー)           |                          |                        |
+```
+
+### 2.2 Twitch OAuth トークン自動リフレッシュ（バックグラウンドライフサイクル）
+
+#### 正常系および一時的ネットワークエラーからの自動回復
+```text
++-------------+          +------------+          +------------+          +-------------+
+| Application |          | QTimer     |          | TwitchAuth |          | Twitch API  |
++------+------+          +-----+------+          +-----+------+          +------+------+
+       |                       |                       |                        |
+       |--[アプリ起動時]       |                       |                        |
+       |  (保存されたトークン  |                       |                        |
+       |   の有無を確認)       |                       |                        |
+       |                       |                       |                        |
+       |====== refreshAccessToken(refreshToken, broadcasterId) =================>| [トークン更新要求]
+       |                       |                       |                        |-- (検証&発行)
+       |                       |                       |<-- authSuccess --------| [HTTP 200 OK]
+       |<-- (スロット受信) ----|                       |   (accessToken,        |
+       |                       |                       |    refreshToken)       |
+       |-- (トークンセキュア保存)                      |                        |
+       |-- (EventSub 接続開始) |                       |                        |
+       |-- start() ----------- |                       |                        |
+       |   (2時間タイマー起動)  |                       |                        |
+       |                       |                       |                        |
+       |                       |                       |                        |
+       |                       |-- [2時間経過]         |                        |
+       |                       |-- (timeout) --------->|                        |
+       |                       |                       |====== POST /token ====>| [定期的更新要求]
+       |                       |                       |                        |
+       |                       |                       | [一時的エラー発生]     |
+       |                       |                       |   (タイムアウト等)     |
+       |                       |                       |<-- [HTTP 5xx / 接続断]-|
+       |                       |                       |                        |
+       |                       |<-- authFailedWithError(errorMessage, isFatal=false) ----
+       |<-- (スロット受信) ----|                       |                        |
+       |                       |                       |                        |
+       |-- (5分後リトライタイマー起動)                 |                        |
+       |   (m_retryCount をインクリメント)             |                        |
+       |                       |                       |                        |
+       |                       |-- [5分経過]           |                        |
+       |                       |-- (timeout) --------->|                        |
+       |                       |                       |====== POST /token ====>| [再試行]
+       |                       |                       |                        |<-- (更新成功)
+       |                       |<-- authSuccess --------|                        |
+       |<-- (スロット受信) ----|                       |                        |
+        |-- (トークンセキュア保存)                      |                        |
+        |-- (2時間タイマー再起動・m_retryCount = 0)     |                        |
+        |                       |                       |                        |
+        |                       |-- [5回連続失敗時]     |                        |
+        |                       |   (m_retryCount == 5) |                        |
+        |                       |                       |                        |
+        |-- (リトライタイマー停止・リフレッシュ停止)     |                        |
+        |-- (エラーをログ・ステータスに記録)            |                        |
+       |                       |                       |                        |
+```
+
+#### 恒久的エラー時の検知と警告表示（接続情報ミス・トークン無効化など）
+```text
++-------------+          +------------+          +------------+          +-------------+          +-------------+
+| Application |          | QTimer     |          | TwitchAuth |          | Twitch API  |          | MainWindow  |
++------+------+          +-----+------+          +-----+------+          +------+------+          +------+------+
+       |                       |                       |                        |                        |
+       |====== refreshAccessToken(refreshToken, broadcasterId) =================>|                        |
+       |                       |                       |                        | [致命的エラー]          |
+       |                       |                       |                        | (Invalid Client等)     |
+       |                       |                       |<-- [HTTP 400/401] -----|                        |
+       |                       |                       |                        |                        |
+       |                       |<-- authFailedWithError(errorMessage, isFatal=true) ────|                        |
+       |<-- (スロット受信) ────|                       |                        |                        |
+       |                                                                                                 |
+       |-- [致命的エラーハンドリング]                                                                    |
+       |   - 定期・リトライタイマーをすべて停止                                                          |
+       |   - ログにエラー（LOG_ERROR）を記録                                                             |
+       |                                                                                                 |
+       |-- (警告シグナル/メソッド呼び出し) ─────────────────────────────────────────────────────────────>|
+       |                                                                                                 |-- (警告ダイアログ)
+       |                                                                                                 |   「認証情報が無効
+       |                                                                                                 |    です。再連携を
+       |                                                                                                 |    行ってください」
 ```
 
 ---

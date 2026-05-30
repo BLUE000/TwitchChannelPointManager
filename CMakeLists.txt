@@ -172,6 +172,9 @@ endif()
 
 # 実行ファイルターゲットの定義
 add_executable(TwitchChannelPointManager ${SOURCES})
+if(WIN32)
+    set_target_properties(TwitchChannelPointManager PROPERTIES LINK_FLAGS "-Wl,-subsystem,windows")
+endif()
 
 # コンパイル定義（ビルド時注入）
 target_compile_definitions(TwitchChannelPointManager PRIVATE
@@ -212,6 +215,9 @@ set(DB_VIEWER_SOURCES
 )
 
 add_executable(TwitchDbViewer ${DB_VIEWER_SOURCES})
+if(WIN32)
+    set_target_properties(TwitchDbViewer PROPERTIES LINK_FLAGS "-Wl,-subsystem,windows")
+endif()
 
 target_compile_definitions(TwitchDbViewer PRIVATE
     APP_VERSION_STRING="${APP_VERSION_STRING}"

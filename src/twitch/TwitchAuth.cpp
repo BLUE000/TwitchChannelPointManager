@@ -206,6 +206,8 @@ void TwitchAuth::exchangeCodeForToken(const QString& authCode)
         QJsonObject obj = doc.object();
         m_accessToken = obj.value("access_token").toString();
         m_refreshToken = obj.value("refresh_token").toString();
+        int expiresIn = obj.value("expires_in").toInt();
+        LOG_INFO(QString("OAuth token expires in: %1 seconds (approx. %2 hours)").arg(expiresIn).arg(expiresIn / 3600.0));
 
         if (m_accessToken.isEmpty()) {
             reply->deleteLater();
@@ -331,7 +333,20 @@ void TwitchAuth::refreshAccessToken(const QString& refreshToken, const QString& 
         if (reply->error() != QNetworkReply::NoError) {
             QByteArray errorData = reply->readAll();
             LOG_ERROR("HTTP error refreshing access token: " + reply->errorString() + " - " + errorData);
-            emit authFailed("トークンの再取得に失敗しました: " + reply->errorString());
+            
+            int httpStatusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            QNetworkReply::NetworkError netErr = reply->error();
+            
+            bool isFatal = false;
+            if (httpStatusCode == 400 || httpStatusCode == 401 || httpStatusCode == 403 ||
+                netErr == QNetworkReply::ContentAccessDenied ||
+                netErr == QNetworkReply::ProtocolInvalidOperationError) {
+                isFatal = true;
+            }
+            
+            QString errMsg = "トークンの再取得に失敗しました: " + reply->errorString();
+            emit authFailed(errMsg);
+            emit authFailedWithError(errMsg, isFatal);
             return;
         }
 
@@ -341,7 +356,9 @@ void TwitchAuth::refreshAccessToken(const QString& refreshToken, const QString& 
 
         if (doc.isNull()) {
             LOG_ERROR("JSON parsing failed for token refresh response: " + parseError.errorString());
-            emit authFailed("トークン再取得レスポンスのパースに失敗しました。");
+            QString errMsg = "トークン再取得レスポンスのパースに失敗しました。";
+            emit authFailed(errMsg);
+            emit authFailedWithError(errMsg, true);
             return;
         }
 
@@ -358,8 +375,15 @@ void TwitchAuth::refreshAccessToken(const QString& refreshToken, const QString& 
 
         if (m_accessToken.isEmpty()) {
             LOG_ERROR("Access token is empty in refresh response.");
-            emit authFailed("アクセストークンが空でした。");
+            QString errMsg = "アクセストークンが空でした。";
+            emit authFailed(errMsg);
+            emit authFailedWithError(errMsg, true);
             return;
+        }
+
+        int expiresIn = obj.value("expires_in").toInt();
+        if (expiresIn > 0) {
+            LOG_INFO(QString("Refreshed token expires in: %1 seconds (approx. %2 hours)").arg(expiresIn).arg(expiresIn / 3600.0));
         }
 
         LOG_INFO("Twitch OAuth access token successfully refreshed!");

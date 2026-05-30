@@ -15,6 +15,7 @@
 #include <QPixmap>
 #include <QByteArray>
 #include <QDialog>
+#include <QMessageBox>
 #include <QTextBrowser>
 #include <QLabel>
 
@@ -237,6 +238,11 @@ void MainWindow::setupConnections()
                 m_settingsWidget->loadCurrentSettings();
                 break;
         }
+    });
+
+    // Twitch の致命的な認証失敗イベント検知 -> 警告ダイアログ表示
+    connect(m_app, &Application::authFailedFatal, this, [this](const QString& errorMessage) {
+        QMessageBox::critical(this, "Twitch連携認証エラー", errorMessage);
     });
 }
 

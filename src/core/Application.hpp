@@ -12,6 +12,7 @@ class FileManager;
 class OverlayServer;
 class TwitchAuth;
 class TwitchEventSub;
+class QTimer;
 
 class Application : public QObject {
     Q_OBJECT
@@ -25,6 +26,10 @@ private:
     
     std::unique_ptr<TwitchAuth> m_twitchAuth;
     std::unique_ptr<TwitchEventSub> m_twitchEventSub;
+
+    QTimer* m_tokenRefreshTimer;
+    QTimer* m_retryTimer;
+    int m_retryCount;
 
     bool m_isInitialized;
 
@@ -47,10 +52,16 @@ public:
     TwitchAuth* twitchAuth() const { return m_twitchAuth.get(); }
     TwitchEventSub* twitchEventSub() const { return m_twitchEventSub.get(); }
 
+signals:
+    void authFailedFatal(const QString& errorMessage);
+
 private slots:
     // Twitch のイベント受信時のディスパッチスロット
     void onTwitchPointRedeemed(const QString& rewardId, const QString& username, const QDateTime& timestamp);
     void onTwitchTokenExpired();
+    void onPeriodicTokenRefreshTriggered();
+    void onTwitchAuthSuccess(const QString& access, const QString& refresh, const QString& broadcasterId);
+    void onTwitchAuthFailed(const QString& errorMessage, bool isFatal);
 
 private:
     void setupSignalConnections();

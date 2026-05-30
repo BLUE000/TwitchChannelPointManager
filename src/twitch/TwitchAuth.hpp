@@ -49,6 +49,7 @@ public:
 signals:
     void authSuccess(const QString& accessToken, const QString& refreshToken, const QString& broadcasterId);
     void authFailed(const QString& errorMessage);
+    void authFailedWithError(const QString& errorMessage, bool isFatal);
     void customRewardsFetched(const QJsonArray& rewards);
     void customRewardsFetchFailed(const QString& errorMessage);
 

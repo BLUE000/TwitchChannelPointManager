@@ -29,7 +29,27 @@ public:
         setHeader(QNetworkRequest::ContentTypeHeader, contentType);
 
         setOpenMode(QIODevice::ReadOnly);
-        setError(QNetworkReply::NoError, "No error");
+        
+        QNetworkReply::NetworkError err = QNetworkReply::NoError;
+        QString errStr = "No error";
+        if (statusCode == 400) {
+            err = QNetworkReply::ProtocolInvalidOperationError;
+            errStr = "Bad Request";
+        } else if (statusCode == 401) {
+            err = QNetworkReply::ContentAccessDenied;
+            errStr = "Unauthorized";
+        } else if (statusCode == 403) {
+            err = QNetworkReply::ContentAccessDenied;
+            errStr = "Forbidden";
+        } else if (statusCode >= 500) {
+            err = QNetworkReply::InternalServerError;
+            errStr = "Server Error";
+        } else if (statusCode >= 400) {
+            err = QNetworkReply::UnknownNetworkError;
+            errStr = "Unknown Error";
+        }
+        
+        setError(err, errStr);
         setFinished(true);
 
         // レプライが完了したことをスロットへ非同期通知するために即座にタイマー起動

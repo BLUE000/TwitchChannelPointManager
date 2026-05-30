@@ -326,6 +326,102 @@ TEST(TwitchAuthTest, ExchangeTokenWithMockHttp) {
     EXPECT_EQ(args.at(2).toString(), "12345678");
 }
 
+TEST(TwitchAuthTest, RefreshAccessTokenSuccess) {
+    MockNetworkAccessManager mockManager;
+    QUrl tokenUrl("https://id.twitch.tv/oauth2/token");
+    QByteArray expectedJson = R"({
+        "access_token": "new_mocked_access_token",
+        "refresh_token": "new_mocked_refresh_token",
+        "expires_in": 14400,
+        "scope": ["channel:read:redemptions"]
+    })";
+    mockManager.setExpectedResponse(tokenUrl, 200, expectedJson);
+
+    TwitchAuth auth("mock_client_id", "mock_client_secret");
+    auth.setNetworkAccessManager(&mockManager);
+
+    QSignalSpy successSpy(&auth, &TwitchAuth::authSuccess);
+    QSignalSpy failedSpy(&auth, &TwitchAuth::authFailedWithError);
+
+    auth.refreshAccessToken("old_refresh_token", "broadcaster_123");
+
+    for (int i = 0; i < 50 && successSpy.isEmpty() && failedSpy.isEmpty(); ++i) {
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+
+    ASSERT_EQ(successSpy.count(), 1);
+    EXPECT_EQ(failedSpy.count(), 0);
+
+    QList<QVariant> args = successSpy.takeFirst();
+    EXPECT_EQ(args.at(0).toString(), "new_mocked_access_token");
+    EXPECT_EQ(args.at(1).toString(), "new_mocked_refresh_token");
+    EXPECT_EQ(args.at(2).toString(), "broadcaster_123");
+}
+
+TEST(TwitchAuthTest, RefreshAccessTokenTemporaryError) {
+    MockNetworkAccessManager mockManager;
+    QUrl tokenUrl("https://id.twitch.tv/oauth2/token");
+    mockManager.setExpectedResponse(tokenUrl, 503, "Service Unavailable");
+
+    TwitchAuth auth("mock_client_id", "mock_client_secret");
+    auth.setNetworkAccessManager(&mockManager);
+
+    QSignalSpy successSpy(&auth, &TwitchAuth::authSuccess);
+    QSignalSpy failedSpy(&auth, &TwitchAuth::authFailedWithError);
+
+    auth.refreshAccessToken("old_refresh_token", "broadcaster_123");
+
+    for (int i = 0; i < 50 && successSpy.isEmpty() && failedSpy.isEmpty(); ++i) {
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+
+    EXPECT_EQ(successSpy.count(), 0);
+    ASSERT_EQ(failedSpy.count(), 1);
+
+    QList<QVariant> args = failedSpy.takeFirst();
+    QString errMsg = args.at(0).toString();
+    bool isFatal = args.at(1).toBool();
+    
+    EXPECT_TRUE(errMsg.contains("再取得に失敗しました"));
+    EXPECT_FALSE(isFatal);
+}
+
+TEST(TwitchAuthTest, RefreshAccessTokenFatalError) {
+    MockNetworkAccessManager mockManager;
+    QUrl tokenUrl("https://id.twitch.tv/oauth2/token");
+    QByteArray errorJson = R"({
+        "error": "Bad Request",
+        "status": 400,
+        "message": "Invalid client"
+    })";
+    mockManager.setExpectedResponse(tokenUrl, 400, errorJson);
+
+    TwitchAuth auth("mock_client_id", "mock_client_secret");
+    auth.setNetworkAccessManager(&mockManager);
+
+    QSignalSpy successSpy(&auth, &TwitchAuth::authSuccess);
+    QSignalSpy failedSpy(&auth, &TwitchAuth::authFailedWithError);
+
+    auth.refreshAccessToken("old_refresh_token", "broadcaster_123");
+
+    for (int i = 0; i < 50 && successSpy.isEmpty() && failedSpy.isEmpty(); ++i) {
+        QCoreApplication::processEvents();
+        QThread::msleep(10);
+    }
+
+    EXPECT_EQ(successSpy.count(), 0);
+    ASSERT_EQ(failedSpy.count(), 1);
+
+    QList<QVariant> args = failedSpy.takeFirst();
+    QString errMsg = args.at(0).toString();
+    bool isFatal = args.at(1).toBool();
+    
+    EXPECT_TRUE(errMsg.contains("再取得に失敗しました"));
+    EXPECT_TRUE(isFatal);
+}
+
 // ==========================================
 // 6. TwitchEventSub 重複排除機能のテスト
 // ==========================================
