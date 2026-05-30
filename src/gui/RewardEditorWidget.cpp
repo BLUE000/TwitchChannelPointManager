@@ -738,7 +738,7 @@ void RewardEditorWidget::onTestClicked()
     r.mode = m_modeCombo->currentData().toString();
     r.effects = m_editingEffects;
 
-    m_app->queueManager()->enqueueReward(r, "テスト配信者 (Test Streamer)", QDateTime::currentDateTime());
+    m_app->queueManager()->enqueueReward(r, "テストユーザー", QDateTime::currentDateTime());
 }
 
 void RewardEditorWidget::onEffectTypeChanged(int index)

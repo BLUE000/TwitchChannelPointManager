@@ -308,18 +308,8 @@ void OverlayServer::setupHttpRoutes()
         QFile file(filePath);
         QString html;
 
-        if (file.exists()) {
-            if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-                QTextStream in(&file);
-                in.setEncoding(QStringConverter::Utf8);
-                html = in.readAll();
-                file.close();
-            }
-        }
-
-        if (html.isEmpty()) {
-            // デフォルトのHTMLテンプレートを構築
-            html = QString(R"HTML(<!DOCTYPE html>
+        // デフォルトのHTMLテンプレートを構築
+        html = QString(R"HTML(<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="utf-8">
@@ -327,10 +317,19 @@ void OverlayServer::setupHttpRoutes()
     <style>
         body { margin: 0; background-color: transparent; overflow: hidden; }
         #overlay-container { width: 100vw; height: 100vh; position: relative; }
-        /* max-width を vw で指定することで、位置によらず常に同じサイズで表示 */
-        .overlay-item { position: absolute; text-align: center; max-width: 80vw; box-sizing: border-box; }
+        /* position: absolute のままで width: max-content にし、left: 0; top: 0; に配置することで折り返し幅を一定に保つ */
+        .overlay-item { position: absolute; text-align: center; width: max-content; max-width: 80vw; box-sizing: border-box; }
         .overlay-item img, .overlay-item video { max-width: 80vw; max-height: 80vh; display: block; }
-        .overlay-text { font-weight: bold; margin-top: 10px; text-shadow: 2px 2px 4px #000; }
+        /* 長文テキストの見切れを防ぐために max-width: 600px を設定し、自動で折り返されるようにする */
+        .overlay-text {
+            font-weight: bold;
+            margin: 10px auto 0 auto;
+            text-shadow: 2px 2px 4px #000;
+            max-width: 600px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -446,30 +445,12 @@ void OverlayServer::setupHttpRoutes()
                     
                     const posX = data.effect.position.offsetX || 960;
                     const posY = data.effect.position.offsetY || 540;
-                    wrapper.style.left      = posX + "px";
-                    wrapper.style.top       = posY + "px";
+                    // left, top は 0px に固定し、要素の折り返し幅が表示位置に依存しないようにする
+                    wrapper.style.left      = "0px";
+                    wrapper.style.top       = "0px";
                     const scaleVal = (data.effect.scale !== undefined ? data.effect.scale : 100) / 100.0;
-                    wrapper.style.transform = `translate(-50%, -50%) scale(${scaleVal})`;
-
-                    const clampToViewport = () => {
-                        try {
-                            const rect = wrapper.getBoundingClientRect();
-                            const vw   = window.innerWidth;
-                            const vh   = window.innerHeight;
-                            let newX = posX;
-                            let newY = posY;
-                            if (rect.left   < 0)  newX += (-rect.left);
-                            if (rect.top    < 0)  newY += (-rect.top);
-                            if (rect.right  > vw) newX -= (rect.right  - vw);
-                            if (rect.bottom > vh) newY -= (rect.bottom - vh);
-                            if (newX !== posX || newY !== posY) {
-                                wrapper.style.left = newX + "px";
-                                wrapper.style.top  = newY + "px";
-                            }
-                        } catch (e) {
-                            console.error("Error in clampToViewport:", e);
-                        }
-                    };
+                    // transform の中で平行移動と中央揃えを同時に適用し、サイズを一定に維持する
+                    wrapper.style.transform = `translate(calc(${posX}px - 50%), calc(${posY}px - 50%)) scale(${scaleVal})`;
 
                     const hasValidFilePath = data.effect.filePath && !data.effect.filePath.endsWith('/assets/') && !data.effect.filePath.endsWith('/assets');
                     if (data.effect.type === "image" && hasValidFilePath) {
@@ -477,8 +458,6 @@ void OverlayServer::setupHttpRoutes()
                         img.src = data.effect.filePath;
                         img.style.maxWidth  = "80vw";
                         img.style.maxHeight = "80vh";
-                        img.onload  = clampToViewport;
-                        img.onerror = clampToViewport;
                         wrapper.appendChild(img);
                     } else if (data.effect.type === "video" && hasValidFilePath) {
                         const vid = document.createElement("video");
@@ -486,7 +465,6 @@ void OverlayServer::setupHttpRoutes()
                         vid.autoplay = true;
                         vid.style.maxWidth  = "80vw";
                         vid.style.maxHeight = "80vh";
-                        vid.onloadedmetadata = clampToViewport;
                         vid.onended = () => completeEffect();
                         vid.onerror = () => completeEffect();
                         wrapper.appendChild(vid);
@@ -576,13 +554,15 @@ void OverlayServer::setupHttpRoutes()
 </html>
 )HTML");
 
-            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QTextStream out(&file);
-                out.setEncoding(QStringConverter::Utf8);
-                out << html;
-                file.close();
-                LOG_INFO("Created default overlay.html template in application directory: " + filePath);
-            }
+        // 常に最新のデフォルトテンプレートをファイルに書き出し同期する
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out.setEncoding(QStringConverter::Utf8);
+            out << html;
+            file.close();
+            LOG_INFO("Synced/Updated default overlay.html template in application directory: " + filePath);
+        } else {
+            LOG_ERROR("Failed to write/sync default overlay.html template: " + filePath);
         }
 
         // WebSocketのポート設定を動的に注入
