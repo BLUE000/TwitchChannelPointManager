@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QJsonArray>
+#include <QGroupBox>
 #include "../reward/Reward.hpp"
 
 class Application;
@@ -61,6 +62,17 @@ private:
     QPushButton* m_syncButton;
     QPushButton* m_testButton;
 
+    // グループボックス
+    QGroupBox* m_listGroup;
+    QGroupBox* m_detailGroup;
+    QGroupBox* m_effectGroup;
+
+    // ラベル
+    QLabel* m_listLabel;
+    QLabel* m_editTargetLabel;
+    QLabel* m_coordLabel;
+    QLabel* m_htmlLabel;
+
     // 編集中の演出リストと現在選択中のインデックスのバッファ
     QList<Effect> m_editingEffects;
     int m_currentEffectIndex = -1;
@@ -71,6 +83,9 @@ public:
  
     void reloadRewardsList();
     void selectRewardAndEffect(const QString& rewardId, int effectIndex = 0);
+
+protected:
+    void changeEvent(QEvent* event) override;
  
 private slots:
     void onRewardSelected(QListWidgetItem* item);
@@ -95,6 +110,7 @@ private slots:
 
 private:
     void setupUi();
+    void retranslateUi();
     void saveCurrentEffectToBuffer();
     void loadEffectFromBuffer(int index);
     void updateEffectSelectorCombo();

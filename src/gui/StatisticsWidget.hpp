@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QTabWidget>
 #include <QComboBox>
+#include <QLabel>
 
 class Application;
 
@@ -20,6 +21,9 @@ private:
     QPushButton* m_exportCsvButton;
     QPushButton* m_resetButton;
 
+    QLabel* m_titleLabel;
+    QLabel* m_periodLabel;
+
     QPushButton* m_rankingBgBtn;
     QPushButton* m_rankingColorBtn;
     QPushButton* m_userStatsBgBtn;
@@ -31,6 +35,9 @@ public:
 
     void refreshRanking();
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void onExportCsvClicked();
     void onResetClicked();
@@ -41,6 +48,7 @@ private slots:
 
 private:
     void setupUi();
+    void retranslateUi();
     void applyTableStyle(QTableWidget* table, const QString& prefix);
     void loadStyles();
 };

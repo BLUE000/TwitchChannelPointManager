@@ -64,10 +64,10 @@ void MainWindow::setupUi()
     m_statisticsWidget = new StatisticsWidget(m_app, m_tabWidget);
     m_settingsWidget = new SettingsWidget(m_app, m_tabWidget);
 
-    m_tabWidget->addTab(m_dashboardWidget, "🏠 ダッシュボード");
-    m_tabWidget->addTab(m_rewardEditorWidget, "🎁 報酬演出管理");
-    m_tabWidget->addTab(m_statisticsWidget, "📊 統計ランキング");
-    m_tabWidget->addTab(m_settingsWidget, "⚙️ システム設定");
+    m_tabWidget->addTab(m_dashboardWidget, tr("🏠 ダッシュボード"));
+    m_tabWidget->addTab(m_rewardEditorWidget, tr("🎁 報酬演出管理"));
+    m_tabWidget->addTab(m_statisticsWidget, tr("📊 統計ランキング"));
+    m_tabWidget->addTab(m_settingsWidget, tr("⚙️ システム設定"));
 
     // 右上の操作ボタンコンテナ作成 (ABOUT & HELP)
     QWidget* cornerContainer = new QWidget(m_tabWidget);
@@ -75,13 +75,13 @@ void MainWindow::setupUi()
     cornerLayout->setContentsMargins(0, 0, 6, 0);
     cornerLayout->setSpacing(6);
 
-    QPushButton* aboutButton = new QPushButton("ℹ️ ABOUT", cornerContainer);
-    aboutButton->setCursor(Qt::PointingHandCursor);
-    aboutButton->setToolTip("アプリケーション情報とライセンス表記を表示します");
+    m_aboutButton = new QPushButton(tr("ℹ️ ABOUT"), cornerContainer);
+    m_aboutButton->setCursor(Qt::PointingHandCursor);
+    m_aboutButton->setToolTip(tr("アプリケーション情報とライセンス表記を表示します"));
 
-    QPushButton* helpButton = new QPushButton("❓ HELP", cornerContainer);
-    helpButton->setCursor(Qt::PointingHandCursor);
-    helpButton->setToolTip("GitHubのオンラインマニュアル（README.md）を開きます");
+    m_helpButton = new QPushButton(tr("❓ HELP"), cornerContainer);
+    m_helpButton->setCursor(Qt::PointingHandCursor);
+    m_helpButton->setToolTip(tr("GitHubのオンラインマニュアル（README.md）を開きます"));
 
     QString cornerButtonStyle = R"(
         QPushButton {
@@ -101,19 +101,19 @@ void MainWindow::setupUi()
             background-color: #121214;
         }
     )";
-    aboutButton->setStyleSheet(cornerButtonStyle);
-    helpButton->setStyleSheet(cornerButtonStyle);
+    m_aboutButton->setStyleSheet(cornerButtonStyle);
+    m_helpButton->setStyleSheet(cornerButtonStyle);
 
-    cornerLayout->addWidget(aboutButton);
-    cornerLayout->addWidget(helpButton);
+    cornerLayout->addWidget(m_aboutButton);
+    cornerLayout->addWidget(m_helpButton);
     cornerContainer->setLayout(cornerLayout);
 
     m_tabWidget->setCornerWidget(cornerContainer, Qt::TopRightCorner);
 
     // ABOUTダイアログの接続
-    connect(aboutButton, &QPushButton::clicked, this, [this]() {
+    connect(m_aboutButton, &QPushButton::clicked, this, [this]() {
         QDialog dialog(this);
-        dialog.setWindowTitle("About Twitch Channel Point Manager");
+        dialog.setWindowTitle(tr("About Twitch Channel Point Manager"));
         dialog.resize(550, 420);
         dialog.setStyleSheet("QDialog { background-color: #1D1D22; }");
 
@@ -121,7 +121,7 @@ void MainWindow::setupUi()
         layout->setContentsMargins(15, 15, 15, 15);
         layout->setSpacing(12);
 
-        QLabel* titleLabel = new QLabel(QString("🦊 Twitch Channel Point Manager - %1").arg(APP_VERSION_STRING), &dialog);
+        QLabel* titleLabel = new QLabel(QString(tr("🦊 Twitch Channel Point Manager - %1")).arg(APP_VERSION_STRING), &dialog);
         titleLabel->setStyleSheet("font-weight: bold; font-size: 15px; color: #FFFFFF;");
         layout->addWidget(titleLabel);
 
@@ -139,7 +139,7 @@ void MainWindow::setupUi()
             }
         )");
 
-        QString licenseHtml = R"(
+        QString licenseHtml = tr(R"(
             <h3>■ 本システム（TwitchChannelPointManager）本体のライセンス</h3>
             <p><strong>MIT License</strong><br>
             Copyright (c) 2026 BLUE000<br><br>
@@ -165,12 +165,12 @@ void MainWindow::setupUi()
             本システムの自動テストに使用されているテストフレームワークです。<br>
             Copyright 2008, Google Inc. All rights reserved.<br>
             Licensed under the 3-Clause BSD License.</p>
-        )";
+        )");
 
         textBrowser->setHtml(licenseHtml);
         layout->addWidget(textBrowser);
 
-        QPushButton* closeButton = new QPushButton("閉じる", &dialog);
+        QPushButton* closeButton = new QPushButton(tr("閉じる"), &dialog);
         closeButton->setStyleSheet("background-color: #29292E; color: #FFFFFF; border: 1px solid #35353B; border-radius: 4px; padding: 6px 15px; font-weight: bold;");
         connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
         layout->addWidget(closeButton, 0, Qt::AlignRight);
@@ -179,7 +179,7 @@ void MainWindow::setupUi()
     });
 
     // オンラインヘルプボタンの接続
-    connect(helpButton, &QPushButton::clicked, this, []() {
+    connect(m_helpButton, &QPushButton::clicked, this, []() {
         QDesktopServices::openUrl(QUrl("https://github.com/BLUE000/TwitchChannelPointManager/blob/master/README.md"));
     });
 
@@ -242,7 +242,7 @@ void MainWindow::setupConnections()
 
     // Twitch の致命的な認証失敗イベント検知 -> 警告ダイアログ表示
     connect(m_app, &Application::authFailedFatal, this, [this](const QString& errorMessage) {
-        QMessageBox::critical(this, "Twitch連携認証エラー", errorMessage);
+        QMessageBox::critical(this, tr("Twitch連携認証エラー"), errorMessage);
     });
 }
 
@@ -330,4 +330,32 @@ void MainWindow::onIdleTimeout()
     m_okojoLabel->move(x, y);
     m_okojoLabel->show();
 }
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+    }
+    QMainWindow::changeEvent(event);
+}
+
+void MainWindow::retranslateUi()
+{
+    if (BUILD_IS_CUSTOMIZED) {
+        setWindowTitle(QString(tr("Twitch Channel Point Manager - %1 (Custom Build)")).arg(APP_VERSION_STRING));
+    } else {
+        setWindowTitle(QString(tr("Twitch Channel Point Manager - %1")).arg(APP_VERSION_STRING));
+    }
+
+    m_tabWidget->setTabText(0, tr("🏠 ダッシュボード"));
+    m_tabWidget->setTabText(1, tr("🎁 報酬演出管理"));
+    m_tabWidget->setTabText(2, tr("📊 統計ランキング"));
+    m_tabWidget->setTabText(3, tr("⚙️ システム設定"));
+
+    m_aboutButton->setText(tr("ℹ️ ABOUT"));
+    m_aboutButton->setToolTip(tr("アプリケーション情報とライセンス表記を表示します"));
+    m_helpButton->setText(tr("❓ HELP"));
+    m_helpButton->setToolTip(tr("GitHubのオンラインマニュアル（README.md）を開きます"));
+}
+
 

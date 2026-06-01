@@ -61,6 +61,11 @@ private:
 
     // 統計ログ管理タブ用UI
     QTabWidget* m_tabWidget;
+    QGroupBox* m_cleanupGroup;
+    QLabel* m_searchLabel;
+    QLabel* m_logSearchLabel;
+    QLabel* m_cleanupPeriodLabel;
+    QLabel* m_centerCoordLabel;
     QTableWidget* m_logTableWidget;
     QLineEdit* m_logSearchEdit;
     QComboBox* m_cleanupPeriodCombo;
@@ -72,6 +77,9 @@ public:
     ~DbViewerWindow();
 
     bool initializeDb(const QString& dbPath);
+
+protected:
+    void changeEvent(QEvent* event) override;
 
 private slots:
     void refreshData();
@@ -98,6 +106,7 @@ private slots:
 
 private:
     void setupUi();
+    void retranslateUi();
     void clearForm();
     void loadRewardToForm(const Reward& r, int effectIndex);
     Reward* findRewardById(const QString& id);

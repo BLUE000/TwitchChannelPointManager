@@ -33,6 +33,7 @@ find_package(Qt6 COMPONENTS
     WebSockets 
     HttpServer 
     Sql 
+    LinguistTools
     REQUIRED
 )
 
@@ -51,6 +52,8 @@ set(SOURCES
     src/core/ServerCipherEngine.cpp
     src/core/HTMLSanitizer.hpp
     src/core/HTMLSanitizer.cpp
+    src/core/TranslationReviewer.hpp
+    src/core/TranslationReviewer.cpp
     
     # Database
     src/database/Database.hpp
@@ -202,6 +205,28 @@ target_link_libraries(TwitchChannelPointManager PRIVATE
 )
 
 # ==========================================
+# 多言語化 (i18n) 設定
+# ==========================================
+set(TS_FILES
+    translations/app_en.ts
+    translations/app_fr.ts
+    translations/app_de.ts
+    translations/app_pt.ts
+    translations/app_es.ts
+)
+
+# 各ターゲットに翻訳データをリソースとして自動埋め込み
+qt_add_translations(TwitchChannelPointManager
+    TS_FILES ${TS_FILES}
+    RESOURCE_PREFIX "/translations"
+)
+
+qt_add_translations(TwitchDbViewer
+    TS_FILES ${TS_FILES}
+    RESOURCE_PREFIX "/translations"
+)
+
+# ==========================================
 # データベース ビューアー (スタンドアロン版) ターゲットの定義
 # ==========================================
 set(DB_VIEWER_SOURCES
@@ -210,6 +235,12 @@ set(DB_VIEWER_SOURCES
     src/gui/standalone/DbViewerWindow.cpp
     src/core/Logger.hpp
     src/core/Logger.cpp
+    src/core/Config.hpp
+    src/core/Config.cpp
+    src/core/ServerCipherEngine.hpp
+    src/core/ServerCipherEngine.cpp
+    src/core/TranslationReviewer.hpp
+    src/core/TranslationReviewer.cpp
     src/database/Database.hpp
     src/database/Database.cpp
 )
@@ -231,6 +262,7 @@ target_link_libraries(TwitchDbViewer PRIVATE
     Qt6::Core
     Qt6::Widgets
     Qt6::Sql
+    Qt6::Network
 )
 
 

@@ -545,3 +545,59 @@ CREATE TABLE IF NOT EXISTS settings (
   - スタンドアロンの別プロセスツール `TwitchDbViewer` 内の `DbViewerWindow` を拡張し、SQLiteデータベース上の `usage_logs` テーブルの内容を確認・フィルタリングするUIを新しく追加する。
   - 「古いログデータのクリーンアップ」ボタンを配置し、`DELETE FROM usage_logs WHERE timestamp < :cutoff` クエリを実行して一括削除を可能にする。
   - クリーンアップ後は、SQLite データベースの物理サイズを縮小してファイルシステム上の空き容量を回収するため、**`VACUUM;`** コマンドを実行する。
+
+### 5.4 多言語化（国際化：i18n）の組み込み設計
+* **処理仕様**:
+  - GUI アプリ全体の国際化を実現するため、Qt の `QTranslator` と自動 Linguist ビルドツールを統合する。
+  - **CMake ビルド制御 (`CMakeLists.txt`)**:
+    - `LinguistTools` パッケージを用いて、コンパイル時に `.ts`（翻訳XML）ファイルを自動ビルドし、バイナリ形式の `.qm` に変換する。
+    - 生成された `.qm` ファイルは、Qtリソース定義ファイル（`resources.qrc`）を介して、実行ファイル内に埋め込みリソース（`:/translations/app_*.qm`）としてリンクされる。
+  - **言語の自動検知と適用、および動的・手動設定 (`main.cpp` / `db_viewer_main.cpp`)**:
+    - アプリ起動時の初期化プロセスにおいて、`config.json` から `"ui_language"` の設定値（デフォルトは `"auto"`）を読み込みます。
+    - 設定が `"auto"` の場合は、`QLocale::system().name()` を使用してOSのロケールを取得し、対応する言語コード（`en`, `fr`, `de`, `pt`, `es`）を判別します。
+    - 手動で特定の言語（`de`, `en`, `es`, `fr`, `pt`, `ja`）が指定されている場合は、そのロケール設定を適用します。
+    - 特定された言語に対応するリソース（例: `:/translations/app_en.qm`）が存在すれば、`QTranslator` でロードして `QApplication::installTranslator()` を介して適用します。該当する翻訳リソースがない、あるいは日本語の場合は標準の日本語UIを表示します。
+  - **再起動不要の即時動的翻訳 (Dynamic Translation) 仕様**:
+    - ユーザーが設定画面で言語を切り替えて「保存」した際、**アプリケーションを再起動することなく、その場で瞬時にGUI全体の表示言語が選択した言語に切り替わります。**
+    - **動作原理**:
+      1. `Application` クラスに言語ロード用メソッド `loadLanguage(const QString& langCode)` を実装。
+      2. 新しい言語の `QTranslator` をロードし、`QCoreApplication::installTranslator()` を呼び出すことで、すべてのウィジェットへ `QEvent::LanguageChange` イベントが自動配信されます。
+      3. 各ウィジェット（`MainWindow`, `DashboardWidget`, `SettingsWidget`, `StatisticsWidget`, `RewardEditorWidget`, `DbViewerWindow`）で `changeEvent(QEvent* event)` メソッドをオーバーライドします。
+      4. `LanguageChange` イベントを捕捉した際、UI文字列を `tr()` で再設定するプライベートメソッド `retranslateUi()` を自動実行し、その場で画面を再描画します。
+  - **システム設定画面への手動言語切り替えコントロールの追加 (`SettingsWidget`)**:
+    - `SettingsWidget` 上に「表示言語設定 (Language Settings)」グループボックスを新設します。
+    - プルダウン（`QComboBox`）の表示項目は、アルファベット昇順で以下のように並べます：
+      - `システムデフォルト (System Default)` -> `auto`
+      - `Deutsch` -> `de`
+      - `English` -> `en`
+      - `Español` -> `es`
+      - `Français` -> `fr`
+      - `Português` -> `pt`
+      - `日本語` -> `ja`
+    - 保存ボタンがクリックされた際、言語設定を `config.json` に保存すると同時に `Application::loadLanguage()` を呼び出して、瞬時にアプリケーション全体へ言語を反映させます。
+  - **多言語対応表 (CSV) の動的出力 (TranslationReviewer クラス)**:
+    - アプリ起動時（特に開発・デバッグ環境など `translations/` ディレクトリにアクセス可能な場合）において、すべての `.ts` ファイル（XML形式）をパースし、各言語の翻訳テキストを対比させた `translation_review.csv` をプロジェクトルートへ自動生成します。
+    - ネイティブレビュアーの利便性を考慮し、文字コードは「UTF-8 BOM付き」でカンマ区切りの CSV 形式にて保存され、Excel等で文字化けせず開けることを担保します。また、本ファイルは `.gitignore` に追記され、リポジトリ管理からは除外されます。
+
+```cpp
+// core/TranslationReviewer.hpp
+#pragma once
+#include <QString>
+
+class TranslationReviewer {
+public:
+    TranslationReviewer() = delete; // 静的ユーティリティクラス
+
+    // translationsDir 配下の app_*.ts を解析し、outputPath に CSV を出力
+    static bool generateReviewCsv(const QString& translationsDir, const QString& outputPath);
+};
+```
+
+#### CSV生成ロジックの処理フロー:
+1. `translationsDir` 内の対応する `.ts` ファイル（`app_en.ts`, `app_fr.ts`, `app_de.ts`, `app_pt.ts`, `app_es.ts`）を探索。
+2. 各 `.ts` ファイルを `QXmlStreamReader` または `QDomDocument` にて解析し、`<message>` タグ内の `<source>` (日本語テキスト) と `<translation>` (各国語の翻訳文) を抽出。
+3. 日本語テキストをキー、各言語コードをサブキーとする二次元マップ `QMap<QString, QMap<QString, QString>>` にデータを集約。
+4. `outputPath` に UTF-8 BOM (`\xEF\xBB\xBF`) を書き込んだ後、以下のヘッダーおよびエスケープ処理済みの各行を出力：
+   `日本語 (Original),英語 (English),フランス語 (French),ドイツ語 (German),ポルトガル語 (Portuguese),スペイン語 (Spanish)`
+5. カンマや改行、ダブルクォーテーションが含まれる場合は適切にダブルクォーテーションで囲み、内部のダブルクォーテーションは二重化する（`""`）。
+

@@ -4,6 +4,8 @@
 #include <memory>
 #include <QString>
 
+#include <QTranslator>
+
 class Database;
 class Config;
 class RewardManager;
@@ -27,6 +29,8 @@ private:
     std::unique_ptr<TwitchAuth> m_twitchAuth;
     std::unique_ptr<TwitchEventSub> m_twitchEventSub;
 
+    QTranslator m_translator; // 動的翻訳用のロードメンバ
+
     QTimer* m_tokenRefreshTimer;
     QTimer* m_retryTimer;
     int m_retryCount;
@@ -39,6 +43,9 @@ public:
 
     // システム全体のセットアップ
     bool initialize(const QString& dbPath = "data.db", const QString& configPath = "config.json");
+    
+    // 動的にUI言語をロード・切り替える
+    bool loadLanguage(const QString& langCode);
     
     // システムの正常終了
     void shutdown();

@@ -10,6 +10,7 @@
 #include <QColorDialog>
 #include <QFile>
 #include <QTextStream>
+#include <QEvent>
 
 StatisticsWidget::StatisticsWidget(Application* app, QWidget* parent)
     : QWidget(parent)
@@ -25,29 +26,34 @@ void StatisticsWidget::setupUi()
     auto* mainLayout = new QVBoxLayout(this);
 
     auto* headerLayout = new QHBoxLayout();
-    headerLayout->addWidget(new QLabel("📊 統計情報", this));
+    m_titleLabel = new QLabel(tr("📊 統計情報"), this);
+    headerLayout->addWidget(m_titleLabel);
     
     m_periodCombo = new QComboBox(this);
-    m_periodCombo->addItem("今日");
-    m_periodCombo->addItem("今週");
-    m_periodCombo->addItem("今月");
-    m_periodCombo->addItem("全期間");
+    // 初期値設定
+    m_periodCombo->addItem(tr("今日"));
+    m_periodCombo->addItem(tr("今週"));
+    m_periodCombo->addItem(tr("今月"));
+    m_periodCombo->addItem(tr("全期間"));
+    m_periodCombo->setStyleSheet("background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px;");
     connect(m_periodCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &StatisticsWidget::refreshRanking);
-    headerLayout->addWidget(new QLabel(" 表示期間:", this));
+    
+    m_periodLabel = new QLabel(tr(" 表示期間:"), this);
+    headerLayout->addWidget(m_periodLabel);
     headerLayout->addWidget(m_periodCombo);
     
     headerLayout->addStretch();
 
-    m_exportCsvButton = new QPushButton("CSV出力", this);
+    m_exportCsvButton = new QPushButton(tr("CSV出力"), this);
     connect(m_exportCsvButton, &QPushButton::clicked, this, &StatisticsWidget::onExportCsvClicked);
     headerLayout->addWidget(m_exportCsvButton);
 
-    m_resetButton = new QPushButton("リセット", this);
+    m_resetButton = new QPushButton(tr("リセット"), this);
     m_resetButton->setStyleSheet("color: #ff5555;");
     connect(m_resetButton, &QPushButton::clicked, this, &StatisticsWidget::onResetClicked);
     headerLayout->addWidget(m_resetButton);
 
-    m_refreshButton = new QPushButton("更新", this);
+    m_refreshButton = new QPushButton(tr("更新"), this);
     m_refreshButton->setFixedWidth(80);
     connect(m_refreshButton, &QPushButton::clicked, this, &StatisticsWidget::refreshRanking);
     headerLayout->addWidget(m_refreshButton);
@@ -60,8 +66,8 @@ void StatisticsWidget::setupUi()
     auto* tab1Layout = new QVBoxLayout(tab1);
     
     auto* tab1Controls = new QHBoxLayout();
-    m_rankingBgBtn = new QPushButton("背景画像設定...", this);
-    m_rankingColorBtn = new QPushButton("文字色設定...", this);
+    m_rankingBgBtn = new QPushButton(tr("背景画像設定..."), this);
+    m_rankingColorBtn = new QPushButton(tr("文字色設定..."), this);
     connect(m_rankingBgBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeRankingBg);
     connect(m_rankingColorBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeRankingColor);
     tab1Controls->addWidget(m_rankingBgBtn);
@@ -71,21 +77,21 @@ void StatisticsWidget::setupUi()
 
     m_rankingTable = new QTableWidget(this);
     m_rankingTable->setColumnCount(3);
-    m_rankingTable->setHorizontalHeaderLabels({"順位", "報酬名", "再生回数"});
+    m_rankingTable->setHorizontalHeaderLabels({tr("順位"), tr("報酬名"), tr("再生回数")});
     m_rankingTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_rankingTable->horizontalHeader()->setStretchLastSection(true);
     m_rankingTable->verticalHeader()->setVisible(false);
     m_rankingTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tab1Layout->addWidget(m_rankingTable);
-    m_tabWidget->addTab(tab1, "ランキング");
+    m_tabWidget->addTab(tab1, tr("ランキング"));
 
     // --- タブ2: ユーザ別利用統計 ---
     QWidget* tab2 = new QWidget(this);
     auto* tab2Layout = new QVBoxLayout(tab2);
 
     auto* tab2Controls = new QHBoxLayout();
-    m_userStatsBgBtn = new QPushButton("背景画像設定...", this);
-    m_userStatsColorBtn = new QPushButton("文字色設定...", this);
+    m_userStatsBgBtn = new QPushButton(tr("背景画像設定..."), this);
+    m_userStatsColorBtn = new QPushButton(tr("文字色設定..."), this);
     connect(m_userStatsBgBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeUserStatsBg);
     connect(m_userStatsColorBtn, &QPushButton::clicked, this, &StatisticsWidget::onChangeUserStatsColor);
     tab2Controls->addWidget(m_userStatsBgBtn);
@@ -95,13 +101,13 @@ void StatisticsWidget::setupUi()
 
     m_userStatsTable = new QTableWidget(this);
     m_userStatsTable->setColumnCount(3);
-    m_userStatsTable->setHorizontalHeaderLabels({"ユーザ名", "報酬名", "利用回数"});
+    m_userStatsTable->setHorizontalHeaderLabels({tr("ユーザ名"), tr("報酬名"), tr("利用回数")});
     m_userStatsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_userStatsTable->horizontalHeader()->setStretchLastSection(true);
     m_userStatsTable->verticalHeader()->setVisible(false);
     m_userStatsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
     tab2Layout->addWidget(m_userStatsTable);
-    m_tabWidget->addTab(tab2, "ユーザ別利用統計");
+    m_tabWidget->addTab(tab2, tr("ユーザ別利用統計"));
 
     mainLayout->addWidget(m_tabWidget);
 }
@@ -114,6 +120,7 @@ void StatisticsWidget::refreshRanking()
     if (!m_app->database()) return;
 
     int periodIndex = m_periodCombo->currentIndex();
+    if (periodIndex < 0) periodIndex = 0;
 
     // --- ランキング ---
     QList<QPair<QString, int>> ranking = m_app->database()->getRanking(periodIndex);
@@ -121,10 +128,10 @@ void StatisticsWidget::refreshRanking()
     for (const auto& pair : ranking) {
         m_rankingTable->insertRow(row);
         
-        auto* rankItem = new QTableWidgetItem(QString("%1 位").arg(row + 1));
+        auto* rankItem = new QTableWidgetItem(QString(tr("%1 位")).arg(row + 1));
         rankItem->setTextAlignment(Qt::AlignCenter);
         auto* nameItem = new QTableWidgetItem(pair.first);
-        auto* countItem = new QTableWidgetItem(QString("%1 回").arg(pair.second));
+        auto* countItem = new QTableWidgetItem(QString(tr("%1 回")).arg(pair.second));
         countItem->setTextAlignment(Qt::AlignCenter);
 
         m_rankingTable->setItem(row, 0, rankItem);
@@ -142,7 +149,7 @@ void StatisticsWidget::refreshRanking()
         auto* userItem = new QTableWidgetItem(stat.username);
         userItem->setTextAlignment(Qt::AlignCenter);
         auto* nameItem = new QTableWidgetItem(stat.rewardName);
-        auto* countItem = new QTableWidgetItem(QString("%1 回").arg(stat.count));
+        auto* countItem = new QTableWidgetItem(QString(tr("%1 回")).arg(stat.count));
         countItem->setTextAlignment(Qt::AlignCenter);
 
         m_userStatsTable->setItem(row, 0, userItem);
@@ -151,7 +158,7 @@ void StatisticsWidget::refreshRanking()
         row++;
     }
 
-    // 同一ユーザのセルを縦方向に結合して見やすくする
+    // 同一ユーザのセルを縦方向に結合
     int i = 0;
     while (i < userStats.size()) {
         int j = i + 1;
@@ -170,24 +177,23 @@ void StatisticsWidget::onExportCsvClicked()
 {
     QTableWidget* currentTable = m_tabWidget->currentIndex() == 0 ? m_rankingTable : m_userStatsTable;
     if (currentTable->rowCount() == 0) {
-        QMessageBox::information(this, "CSV出力", "出力するデータがありません。");
+        QMessageBox::information(this, tr("CSV出力"), tr("出力するデータがありません。"));
         return;
     }
 
     QString defaultName = m_tabWidget->currentIndex() == 0 ? "ranking_stats.csv" : "user_stats.csv";
-    QString fileName = QFileDialog::getSaveFileName(this, "CSVを保存", defaultName, "CSVファイル (*.csv)");
+    QString fileName = QFileDialog::getSaveFileName(this, tr("CSVを保存"), defaultName, tr("CSVファイル (*.csv)"));
     if (fileName.isEmpty()) {
         return;
     }
 
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this, "エラー", "ファイルの作成に失敗しました。");
+        QMessageBox::critical(this, tr("エラー"), tr("ファイルの作成に失敗しました。"));
         return;
     }
 
     QTextStream out(&file);
-    // BOM for UTF-8 Excel compatibility
     out << QString("\xEF\xBB\xBF");
 
     // Header
@@ -203,7 +209,6 @@ void StatisticsWidget::onExportCsvClicked()
         for (int col = 0; col < currentTable->columnCount(); ++col) {
             QTableWidgetItem* item = currentTable->item(row, col);
             QString text = item ? item->text() : "";
-            // Escape quotes
             text.replace("\"", "\"\"");
             rowData << "\"" + text + "\"";
         }
@@ -211,22 +216,22 @@ void StatisticsWidget::onExportCsvClicked()
     }
 
     file.close();
-    QMessageBox::information(this, "完了", "CSVを出力しました。");
+    QMessageBox::information(this, tr("完了"), tr("CSVを出力しました。"));
 }
 
 void StatisticsWidget::onResetClicked()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "統計リセットの確認",
-                                  "すべての統計履歴（ランキングおよびユーザ別統計）を削除します。\nよろしいですか？",
+    reply = QMessageBox::question(this, tr("統計リセットの確認"),
+                                  tr("すべての統計履歴（ランキングおよびユーザ別統計）を削除します。\nよろしいですか？"),
                                   QMessageBox::Yes | QMessageBox::No);
     
     if (reply == QMessageBox::Yes) {
         if (m_app->database() && m_app->database()->clearUsageLogs()) {
-            QMessageBox::information(this, "完了", "統計をリセットしました。");
+            QMessageBox::information(this, tr("完了"), tr("統計をリセットしました。"));
             refreshRanking();
         } else {
-            QMessageBox::critical(this, "エラー", "統計のリセットに失敗しました。");
+            QMessageBox::critical(this, tr("エラー"), tr("統計のリセットに失敗しました。"));
         }
     }
 }
@@ -247,7 +252,6 @@ void StatisticsWidget::applyTableStyle(QTableWidget* table, const QString& prefi
     QString style = "QTableWidget { gridline-color: #333333; ";
     
     if (!bgImage.isEmpty()) {
-        // border-image を使用することで、テーブルの領域サイズに合わせて自動的に拡縮（リサイズ対応）される
         style += QString("border-image: url('%1') 0 0 0 0 stretch stretch; ").arg(bgImage);
     }
     
@@ -256,8 +260,6 @@ void StatisticsWidget::applyTableStyle(QTableWidget* table, const QString& prefi
     }
     
     style += "} ";
-    
-    // セル背景を透明にして画像を見せる
     style += "QTableWidget::item { background-color: transparent; } ";
     
     table->setStyleSheet(style);
@@ -265,7 +267,7 @@ void StatisticsWidget::applyTableStyle(QTableWidget* table, const QString& prefi
 
 void StatisticsWidget::onChangeRankingBg()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, "背景画像を選択（キャンセルでクリア）", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+    QString fileName = QFileDialog::getOpenFileName(this, tr("背景画像を選択（キャンセルでクリア）"), "", "Images (*.png *.jpg *.jpeg *.bmp)");
     if (m_app->database()) {
         m_app->database()->saveSetting("stats_ranking_bg", fileName);
         applyTableStyle(m_rankingTable, "stats_ranking");
@@ -274,7 +276,7 @@ void StatisticsWidget::onChangeRankingBg()
 
 void StatisticsWidget::onChangeRankingColor()
 {
-    QColor color = QColorDialog::getColor(Qt::white, this, "文字色を選択");
+    QColor color = QColorDialog::getColor(Qt::white, this, tr("文字色を選択"));
     if (color.isValid() && m_app->database()) {
         m_app->database()->saveSetting("stats_ranking_color", color.name());
         applyTableStyle(m_rankingTable, "stats_ranking");
@@ -283,7 +285,7 @@ void StatisticsWidget::onChangeRankingColor()
 
 void StatisticsWidget::onChangeUserStatsBg()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, "背景画像を選択（キャンセルでクリア）", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+    QString fileName = QFileDialog::getOpenFileName(this, tr("背景画像を選択（キャンセルでクリア）"), "", "Images (*.png *.jpg *.jpeg *.bmp)");
     if (m_app->database()) {
         m_app->database()->saveSetting("stats_user_bg", fileName);
         applyTableStyle(m_userStatsTable, "stats_user");
@@ -292,9 +294,50 @@ void StatisticsWidget::onChangeUserStatsBg()
 
 void StatisticsWidget::onChangeUserStatsColor()
 {
-    QColor color = QColorDialog::getColor(Qt::white, this, "文字色を選択");
+    QColor color = QColorDialog::getColor(Qt::white, this, tr("文字色を選択"));
     if (color.isValid() && m_app->database()) {
         m_app->database()->saveSetting("stats_user_color", color.name());
         applyTableStyle(m_userStatsTable, "stats_user");
     }
+}
+
+void StatisticsWidget::changeEvent(QEvent* event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+    }
+    QWidget::changeEvent(event);
+}
+
+void StatisticsWidget::retranslateUi()
+{
+    m_titleLabel->setText(tr("📊 統計情報"));
+    m_periodLabel->setText(tr(" 表示期間:"));
+
+    // コンボボックスのアイテムを再翻訳
+    m_periodCombo->blockSignals(true);
+    int currentIdx = m_periodCombo->currentIndex();
+    m_periodCombo->clear();
+    m_periodCombo->addItem(tr("今日"));
+    m_periodCombo->addItem(tr("今週"));
+    m_periodCombo->addItem(tr("今月"));
+    m_periodCombo->addItem(tr("全期間"));
+    m_periodCombo->setCurrentIndex(currentIdx >= 0 ? currentIdx : 0);
+    m_periodCombo->blockSignals(false);
+
+    m_exportCsvButton->setText(tr("CSV出力"));
+    m_resetButton->setText(tr("リセット"));
+    m_refreshButton->setText(tr("更新"));
+
+    m_rankingBgBtn->setText(tr("背景画像設定..."));
+    m_rankingColorBtn->setText(tr("文字色設定..."));
+    m_rankingTable->setHorizontalHeaderLabels({tr("順位"), tr("報酬名"), tr("再生回数")});
+    m_tabWidget->setTabText(0, tr("ランキング"));
+
+    m_userStatsBgBtn->setText(tr("背景画像設定..."));
+    m_userStatsColorBtn->setText(tr("文字色設定..."));
+    m_userStatsTable->setHorizontalHeaderLabels({tr("ユーザ名"), tr("報酬名"), tr("利用回数")});
+    m_tabWidget->setTabText(1, tr("ユーザ別利用統計"));
+
+    refreshRanking();
 }

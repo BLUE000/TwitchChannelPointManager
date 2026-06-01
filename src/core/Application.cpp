@@ -9,6 +9,8 @@
 #include "../twitch/TwitchAuth.hpp"
 #include "../twitch/TwitchEventSub.hpp"
 #include <QTimer>
+#include <QCoreApplication>
+#include <QLocale>
 
 Application::Application(QObject* parent)
     : QObject(parent)
@@ -41,6 +43,10 @@ bool Application::initialize(const QString& dbPath, const QString& configPath)
     // 3. 設定マネージャーの初期化
     m_config = std::make_unique<Config>(configPath, this);
     m_config->load(); // 初回起動時などでファイルが無ければ空ロード
+
+    // UI言語設定をロードして適用
+    QString initialLang = m_config->get("ui_language", "auto").toString();
+    loadLanguage(initialLang);
 
     // 4. 報酬キャッシュ・バリデーションマネージャーの初期化
     m_rewardManager = std::make_unique<RewardManager>(m_database.get(), this);
@@ -262,3 +268,29 @@ void Application::onTwitchAuthFailed(const QString& errorMessage, bool isFatal)
         }
     }
 }
+
+bool Application::loadLanguage(const QString& langCode)
+{
+    // 一旦既存の翻訳をアンインストール
+    QCoreApplication::removeTranslator(&m_translator);
+
+    QString targetLang = langCode;
+    if (targetLang == "auto") {
+        targetLang = QLocale::system().name().left(2);
+    }
+
+    QStringList supportedLangs = {"de", "en", "es", "fr", "pt"};
+    if (supportedLangs.contains(targetLang)) {
+        if (m_translator.load(QString(":/translations/app_") + targetLang)) {
+            QCoreApplication::installTranslator(&m_translator);
+            LOG_INFO(QString("Language dynamically loaded: %1").arg(targetLang).toStdString().c_str());
+            return true;
+        } else {
+            LOG_WARN(QString("Failed to load translation resource for: %1").arg(targetLang).toStdString().c_str());
+        }
+    } else {
+        LOG_INFO(QString("Language set to default (Japanese) or unsupported: %1").arg(targetLang).toStdString().c_str());
+    }
+    return false;
+}
+

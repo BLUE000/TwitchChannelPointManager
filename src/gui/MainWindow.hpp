@@ -5,6 +5,7 @@
 #include <QLabel>
 #include <QTimer>
 #include <QEvent>
+#include <QPushButton>
 #include <memory>
 
 class Application;
@@ -24,6 +25,9 @@ private:
     StatisticsWidget* m_statisticsWidget;
     SettingsWidget* m_settingsWidget;
 
+    QPushButton* m_aboutButton;
+    QPushButton* m_helpButton;
+
     // イースターエッグ（おこじょ）用メンバ
     QTimer* m_idleTimer = nullptr;
     QLabel* m_okojoLabel = nullptr;
@@ -36,8 +40,10 @@ public:
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
     void setupUi();
     void setupConnections();
+    void retranslateUi();
 };

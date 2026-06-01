@@ -8,17 +8,26 @@
 
 class Application;
 
+class QGroupBox;
+
 class DashboardWidget : public QWidget {
     Q_OBJECT
 private:
     Application* m_app;
     
+    QGroupBox* m_infoGroup;
+    QGroupBox* m_logGroup;
+    
+    QLabel* m_esLabel;
+    QLabel* m_obsLabel;
+    QLabel* m_todayLabel;
     QLabel* m_statusLabel;
     QLabel* m_clientsLabel;
     QLabel* m_todayCountLabel;
     
     QPushButton* m_toggleConnButton;
     QPushButton* m_panicButton;
+    QPushButton* m_clearQueueBtn;
     QListWidget* m_logListWidget;
 
 public:
@@ -28,6 +37,9 @@ public:
     // GUIデータの最新状態更新
     void refreshStats();
 
+protected:
+    void changeEvent(QEvent* event) override;
+
 private slots:
     void onToggleConnection();
     void onPanicClicked();
@@ -36,4 +48,5 @@ private slots:
 
 private:
     void setupUi();
+    void retranslateUi();
 };
