@@ -40,5 +40,5 @@ TwitchChannelPointManager_Ver*/
 # UI assets and temporary pictures
 pic/
 
-# Native review translation sheet (Managed by Git as requested)
-# translation_review.csv
+# Native review translation sheet
+translation_review.csv
