@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     }
 
     // 開発環境であれば翻訳レビュー用CSVを自動生成・更新する
-    TranslationReviewer::generateReviewCsv("translations", "translation_review.csv");
+    // TranslationReviewer::generateReviewCsv("translations", "translation_review.csv");
 
     // GUI メインウィンドウのインスタンス化と表示
     MainWindow w(&app);
