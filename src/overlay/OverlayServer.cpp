@@ -282,23 +282,22 @@ void OverlayServer::setupHttpRoutes()
             responder.write(fileData, headers, QHttpServerResponder::StatusCode::Ok);
             return;
         }
-
-        // 画像、動画、効果音アセットは大容量の可能性があるため、QHttpServerResponderを用いてストリーム配信
-        auto* file = new QFile(realPath);
-        if (!file->open(QIODevice::ReadOnly)) {
+        QFile file(realPath);
+        if (!file.open(QIODevice::ReadOnly)) {
             LOG_ERROR("Failed to open real asset file for streaming: " + realPath);
-            delete file;
             responder.write(QHttpServerResponder::StatusCode::InternalServerError);
             return;
         }
+
+        QByteArray fileData = file.readAll();
+        file.close();
 
         QHttpHeaders headers;
         headers.append("Content-Type", mime.toUtf8());
         headers.append("Access-Control-Allow-Origin", "*");
         headers.append("Cache-Control", "no-cache, no-store, must-revalidate");
 
-        // QFileの所有権は QHttpServerResponder が引き受け、配信完了時に自動で削除される
-        responder.write(file, headers, QHttpServerResponder::StatusCode::Ok);
+        responder.write(fileData, headers, QHttpServerResponder::StatusCode::Ok);
     });
 
     // テスト兼OBS登録用のデフォルトオーバーレイHTMLページ

@@ -613,22 +613,21 @@ void RewardEditorWidget::onTestClicked()
     saveCurrentEffectToBuffer();
 
     QString id = m_idEdit->text().trimmed();
+    QString name = m_nameEdit->text().trimmed();
     if (id.isEmpty()) return;
 
     Reward r;
-    if (m_app->rewardManager()->getReward(id, r)) {
-        QueueItem item;
-        item.queueId = "TEST_PLAY_" + QString::number(QDateTime::currentMSecsSinceEpoch());
-        item.rewardId = r.id;
-        item.username = tr("テスト配信者");
-        item.timestamp = QDateTime::currentDateTime();
-        
-        for (const auto& eff : m_editingEffects) {
-            item.effects.enqueue(eff);
-        }
-
-        m_app->overlayServer()->sendEffect(item, m_editingEffects[0]);
+    if (!m_app->rewardManager()->getReward(id, r)) {
+        r.id = id;
     }
+    r.name = name.isEmpty() ? tr("テスト演出") : name;
+    r.cost = m_costSpin->value();
+    r.cooldown = m_cooldownSpin->value();
+    r.mode = m_modeCombo->currentData().toString();
+    r.enabled = m_enabledCheck->isChecked();
+    r.effects = m_editingEffects;
+
+    m_app->queueManager()->enqueueReward(r, tr("テスト配信者"), QDateTime::currentDateTime());
 }
 
 void RewardEditorWidget::onCustomRewardsFetched(const QJsonArray& rewards)
